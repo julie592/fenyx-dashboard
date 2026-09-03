@@ -850,6 +850,87 @@ Lead Profile:
                   <span>Reset Filters</span>
                 </button>
               </div>
+
+              {/* Multi-Dimensional Filter Dropdowns */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100 text-xs">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Lead Source</label>
+                  <select
+                    value={leadFilters.source}
+                    onChange={(e) => setLeadFilters(prev => ({ ...prev, source: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
+                  >
+                    <option value="All">All Sources</option>
+                    <option value="Google Event – August 2026">Google Event (FPF)</option>
+                    <option value="Internal Leads">Internal Leads</option>
+                    <option value="Google Referrals">Google Referrals</option>
+                    <option value="Growth Review Form – Website">Website Form</option>
+                    <option value="Unattributed">Unattributed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Lead Stage</label>
+                  <select
+                    value={leadFilters.leadStage}
+                    onChange={(e) => setLeadFilters(prev => ({ ...prev, leadStage: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
+                  >
+                    <option value="All">All Stages</option>
+                    <option value="Lead">Lead</option>
+                    <option value="MQL">MQL</option>
+                    <option value="SQL">SQL</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Engagement</label>
+                  <select
+                    value={leadFilters.engagement}
+                    onChange={(e) => setLeadFilters(prev => ({ ...prev, engagement: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
+                  >
+                    <option value="All">All Engagement</option>
+                    <option value="Engaged">Engaged</option>
+                    <option value="Unengaged">Unengaged</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Automation Status</label>
+                  <select
+                    value={leadFilters.automation}
+                    onChange={(e) => setLeadFilters(prev => ({ ...prev, automation: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
+                  >
+                    <option value="All">All Automations</option>
+                    <option value="Active">Currently in Automation</option>
+                    <option value="Completed">Completed Journeys</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Event Status</label>
+                  <select
+                    value={leadFilters.eventStatus}
+                    onChange={(e) => setLeadFilters(prev => ({ ...prev, eventStatus: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
+                  >
+                    <option value="All">All Event Statuses</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Waitlist">Waitlist</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="RSVP">RSVP Confirmed</option>
+                    <option value="Attended">Attended</option>
+                    <option value="No Show">No Show</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                <span>Showing <strong>{filteredLeads.length}</strong> of {attributedContacts.length} contacts</span>
+                <span className="text-[11px]">Click any contact for complete 360° lead dossier</span>
+              </div>
             </div>
 
             {/* Leads Table */}
@@ -863,7 +944,11 @@ Lead Profile:
                       <th className="py-3 px-3">Source Attribution</th>
                       <th className="py-3 px-3 text-center">Stage</th>
                       <th className="py-3 px-3 text-center">Score</th>
-                      <th className="py-3 px-3">Tags</th>
+                      <th className="py-3 px-3 text-center">Emails Rcvd</th>
+                      <th className="py-3 px-3 text-center">Opens</th>
+                      <th className="py-3 px-3 text-center">Clicks</th>
+                      <th className="py-3 px-3 text-center">Automations</th>
+                      <th className="py-3 px-3 text-center">Event Status</th>
                       <th className="py-3 px-3 text-right">Details</th>
                     </tr>
                   </thead>
@@ -893,18 +978,58 @@ Lead Profile:
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-center font-semibold text-slate-800">{contact.leadScore}</td>
-                        <td className="py-2.5 px-3">
-                          <div className="flex flex-wrap gap-1 max-w-xs">
-                            {contact.rawTags.slice(0, 3).map((tag, idx) => (
-                              <span key={idx} className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono">
-                                #{tag}
-                              </span>
-                            ))}
-                            {contact.rawTags.length > 3 && (
-                              <span className="text-[10px] text-slate-400">+{contact.rawTags.length - 3}</span>
+                        
+                        {/* Emails Received with Broadcast vs Automation breakdown */}
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="font-bold text-slate-900">{contact.emailsReceived || 0}</div>
+                          <div className="text-[10px] text-slate-400">
+                            {contact.broadcastEmails || 0} bcast / {contact.automationEmails || 0} auto
+                          </div>
+                        </td>
+
+                        {/* Opens & Open Rate */}
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="font-medium text-indigo-700">{contact.emailsOpened || 0}</div>
+                          <div className="text-[10px] text-slate-400">{contact.openRate || 0}%</div>
+                        </td>
+
+                        {/* Clicks & Click Rate */}
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="font-medium text-emerald-700">{contact.linksClicked || 0}</div>
+                          <div className="text-[10px] text-slate-400">{contact.clickRate || 0}%</div>
+                        </td>
+
+                        {/* Automations entered and active status */}
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="font-medium text-slate-800">{contact.automationsEntered || 0} entered</div>
+                          <div className="text-[10px]">
+                            {contact.activeAutomations > 0 ? (
+                              <span className="text-amber-600 font-semibold">{contact.activeAutomations} Active</span>
+                            ) : (
+                              <span className="text-emerald-600 font-medium">{contact.completedAutomations || 0} done</span>
                             )}
                           </div>
                         </td>
+
+                        {/* Event Attendance Status */}
+                        <td className="py-2.5 px-3 text-center">
+                          {contact.approvalStatus ? (
+                            <div>
+                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                contact.approvalStatus === 'Approved' ? 'bg-purple-100 text-purple-700' :
+                                contact.approvalStatus === 'Waitlist' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
+                              }`}>
+                                {contact.approvalStatus}
+                              </span>
+                              {contact.attendanceStatus && (
+                                <div className="text-[10px] text-slate-500 mt-0.5">{contact.attendanceStatus}</div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">—</span>
+                          )}
+                        </td>
+
                         <td className="py-2.5 px-3 text-right text-indigo-600 font-medium hover:underline">
                           View Dossier →
                         </td>
