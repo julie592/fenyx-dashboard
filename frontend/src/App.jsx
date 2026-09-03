@@ -141,80 +141,6 @@ const generateInitialContacts = () => {
   return contacts;
 };
 
-const MOCK_CAMPAIGNS = [
-  {
-    id: 'camp-101',
-    name: 'Growth Audit Invitation – Wave 3',
-    dateSent: '2026-08-25',
-    recipients: 2481,
-    delivered: 2463,
-    opens: 1421,
-    openRate: 57.7,
-    clicks: 214,
-    clickRate: 8.7,
-    unsubscribes: 6,
-    bounces: 18,
-    category: 'Nurture',
-  },
-  {
-    id: 'camp-102',
-    name: 'Founder Partner Forum: RSVP Confirmation',
-    dateSent: '2026-08-18',
-    recipients: 127,
-    delivered: 127,
-    opens: 114,
-    openRate: 89.8,
-    clicks: 81,
-    clickRate: 63.8,
-    unsubscribes: 0,
-    bounces: 0,
-    category: 'Event Confirmation',
-  },
-  {
-    id: 'camp-103',
-    name: 'August Executive Briefing Newsletter',
-    dateSent: '2026-08-10',
-    recipients: 3120,
-    delivered: 3090,
-    opens: 1358,
-    openRate: 43.9,
-    clicks: 198,
-    clickRate: 6.4,
-    unsubscribes: 14,
-    bounces: 30,
-    category: 'Newsletter',
-  }
-];
-
-const MOCK_AUTOMATIONS = [
-  {
-    id: 'auto-201',
-    name: 'Growth Audit Follow-up & Booking Sequence',
-    entries: 342,
-    active: 38,
-    completed: 298,
-    completionRate: 87.1,
-    emailsSent: 1026,
-    uniqueOpens: 728,
-    uniqueClicks: 215,
-    unsubscribes: 4,
-    goalConversion: '62.8% Booked',
-  },
-  {
-    id: 'auto-202',
-    name: 'Google Event (FPF) Onboarding & Logistics',
-    entries: 127,
-    active: 0,
-    completed: 127,
-    completionRate: 100.0,
-    emailsSent: 381,
-    uniqueOpens: 350,
-    uniqueClicks: 112,
-    unsubscribes: 0,
-    goalConversion: '63.8% RSVP',
-  }
-];
-
 const INITIAL_LIVE_ACTIVITIES = [
   { id: 'act-1', contact: 'Sarah Smith', time: '12:41 PM', action: 'Entered "Growth Audit Follow-up"', type: 'automation' },
   { id: 'act-2', contact: 'John Lee', time: '12:40 PM', action: 'Clicked "Request a Follow-up"', type: 'click' },
@@ -226,6 +152,8 @@ export default function App() {
   const [dateRange, setDateRange] = useState('YTD 2026');
   
   const [contacts, setContacts] = useState(generateInitialContacts);
+  const [campaigns, setCampaigns] = useState([]);
+  const [automations, setAutomations] = useState([]);
   const [isLiveSource, setIsLiveSource] = useState(false);
   const [isLoadingLive, setIsLoadingLive] = useState(true);
   const [syncError, setSyncError] = useState(null);
@@ -261,26 +189,24 @@ export default function App() {
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [selectedAutomation, setSelectedAutomation] = useState(null);
   const [campaignCohortFilter, setCampaignCohortFilter] = useState('ALL');
-  const [isArchModalOpen, setIsArchModalOpen] = useState(false);
-  const [isTagRulesModalOpen, setIsTagRulesModalOpen] = useState(false);
-  const [newRule, setNewRule] = useState({ pattern: '', matchType: 'startsWith', source: '', priority: 6 });
 
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [aiReportType, setAiReportType] = useState('EXECUTIVE');
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
   const [aiAnalysisResult, setAiAnalysisResult] = useState(null);
   const [aiCustomPrompt, setAiCustomPrompt] = useState('');
-  
+
   const [aiLeadAnalysisLoading, setAiLeadAnalysisLoading] = useState(false);
   const [aiLeadAnalysis, setAiLeadAnalysis] = useState(null);
   const [copiedLeadDraft, setCopiedLeadDraft] = useState(false);
 
-  // Auto-Fetch Contacts from Backend Proxy
   const fetchLiveContacts = useCallback(async (targetUrl = apiConfig.backendUrl) => {
     setIsLoadingLive(true);
     setSyncError(null);
     try {
       const cleanUrl = targetUrl.replace(/\/+$/, '');
+      
+      // 1. Fetch live contacts
       const response = await fetch(`${cleanUrl}/api/contacts`);
       if (!response.ok) {
         throw new Error(`Server returned HTTP ${response.status}`);
@@ -289,28 +215,53 @@ export default function App() {
       if (data.contacts && Array.isArray(data.contacts) && data.contacts.length > 0) {
         setContacts(data.contacts);
         setIsLiveSource(true);
-        setApiConfig(prev => ({
-          ...prev,
-          status: 'connected',
-          lastSync: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }));
-      } else {
-        throw new Error('No contact records returned from ActiveCampaign API endpoint');
       }
+
+      // 2. Fetch live broadcast campaigns
+      try {
+        const campRes = await fetch(`${cleanUrl}/api/campaigns`);
+        if (campRes.ok) {
+          const campData = await campRes.json();
+          if (campData.campaigns && Array.isArray(campData.campaigns)) {
+            setCampaigns(campData.campaigns);
+          }
+        }
+      } catch (campErr) {
+        console.warn('Campaign fetch error:', campErr.message);
+      }
+
+      // 3. Fetch live automations
+      try {
+        const autoRes = await fetch(`${cleanUrl}/api/automations`);
+        if (autoRes.ok) {
+          const autoData = await autoRes.json();
+          if (autoData.automations && Array.isArray(autoData.automations)) {
+            setAutomations(autoData.automations);
+          }
+        }
+      } catch (autoErr) {
+        console.warn('Automation fetch error:', autoErr.message);
+      }
+
+      setApiConfig(prev => ({
+        ...prev,
+        status: 'connected',
+        lastSync: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }));
     } catch (err) {
-      console.warn('Could not pull real contacts from backend proxy:', err.message);
+      console.warn('Live sync issue:', err.message);
       setSyncError(err.message);
       setApiConfig(prev => ({
         ...prev,
         status: 'error',
-        lastSync: 'Sync failed (using offline dataset)'
+        lastSync: 'Sync error'
       }));
     } finally {
       setIsLoadingLive(false);
     }
   }, [apiConfig.backendUrl]);
 
-  // Trigger initial fetch on dashboard mount
+  // Trigger sync on initial load
   useEffect(() => {
     fetchLiveContacts();
   }, [fetchLiveContacts]);
@@ -379,7 +330,7 @@ ${metrics.sourceRows.map(r => `- ${r.source}: ${r.leadCount} leads, Spend: $${r.
       const responseText = await callGemini(prompt, systemPrompt);
       setAiAnalysisResult(responseText);
     } catch (err) {
-      setAiAnalysisResult("Unable to generate AI briefing at this time. Please verify your connection.");
+      setAiAnalysisResult("Unable to generate AI briefing at this time. Please check backend connection.");
     } finally {
       setAiAnalysisLoading(false);
     }
@@ -579,7 +530,7 @@ Lead Profile:
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-500 selection:text-white pb-20">
       
-      {/* Top Global Header */}
+      {/* Top Header */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4 shadow-xs">
         <div className="flex items-center space-x-4">
           <FenyxLogo className="h-8" />
@@ -647,14 +598,14 @@ Lead Profile:
         </div>
       </header>
 
-      {/* Main Tabs Navigation */}
+      {/* Tabs Navigation Bar */}
       <nav className="bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8">
         <div className="flex space-x-1 sm:space-x-2 overflow-x-auto py-2.5 scrollbar-none">
           {[
             { id: 'OVERVIEW', label: 'Overview', icon: PieChart },
             { id: 'LEADS', label: 'All Leads', icon: Users, badge: metrics.totalContacts },
-            { id: 'CAMPAIGNS', label: 'Campaigns', icon: Send, badge: MOCK_CAMPAIGNS.length },
-            { id: 'AUTOMATIONS', label: 'Automations', icon: Workflow, badge: MOCK_AUTOMATIONS.length },
+            { id: 'CAMPAIGNS', label: 'Campaigns', icon: Send, badge: campaigns.length },
+            { id: 'AUTOMATIONS', label: 'Automations', icon: Workflow, badge: automations.length },
             { id: 'EVENTS', label: 'Events', icon: CalendarCheck, badge: metrics.eventStats.approved },
             { id: 'ACQUISITION', label: 'Acquisition / Spend', icon: DollarSign },
           ].map((tab) => {
@@ -685,16 +636,16 @@ Lead Profile:
         </div>
       </nav>
 
-      {/* Content Container */}
+      {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
 
-        {/* Live sync banner alert */}
+        {/* Live sync alert banner */}
         {isLiveSource && (
           <div className="mb-6 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900 shadow-xs">
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-4 w-4 text-emerald-600 flex-shrink-0" />
               <span>
-                <strong>Live ActiveCampaign Connected:</strong> Currently streaming <strong>{contacts.length} real contacts</strong> and tags from your account.
+                <strong>Live ActiveCampaign Connected:</strong> Streaming <strong>{contacts.length} real contacts</strong>, <strong>{campaigns.length} campaigns</strong>, and <strong>{automations.length} automations</strong>.
               </span>
             </div>
             <span className="text-[11px] text-emerald-700 font-mono">Last synced: {apiConfig.lastSync}</span>
@@ -820,7 +771,7 @@ Lead Profile:
         {activeTab === 'LEADS' && (
           <div className="space-y-4">
             
-            {/* Filter Bar */}
+            {/* Filter Controls */}
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div className="relative flex-1">
@@ -891,6 +842,7 @@ Lead Profile:
                     className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
                   >
                     <option value="All">All Engagement</option>
+                    <option value="Highly Engaged">Highly Engaged</option>
                     <option value="Engaged">Engaged</option>
                     <option value="Unengaged">Unengaged</option>
                   </select>
@@ -979,7 +931,6 @@ Lead Profile:
                         </td>
                         <td className="py-2.5 px-3 text-center font-semibold text-slate-800">{contact.leadScore}</td>
                         
-                        {/* Emails Received with Broadcast vs Automation breakdown */}
                         <td className="py-2.5 px-3 text-center">
                           <div className="font-bold text-slate-900">{contact.emailsReceived || 0}</div>
                           <div className="text-[10px] text-slate-400">
@@ -987,19 +938,16 @@ Lead Profile:
                           </div>
                         </td>
 
-                        {/* Opens & Open Rate */}
                         <td className="py-2.5 px-3 text-center">
                           <div className="font-medium text-indigo-700">{contact.emailsOpened || 0}</div>
                           <div className="text-[10px] text-slate-400">{contact.openRate || 0}%</div>
                         </td>
 
-                        {/* Clicks & Click Rate */}
                         <td className="py-2.5 px-3 text-center">
                           <div className="font-medium text-emerald-700">{contact.linksClicked || 0}</div>
                           <div className="text-[10px] text-slate-400">{contact.clickRate || 0}%</div>
                         </td>
 
-                        {/* Automations entered and active status */}
                         <td className="py-2.5 px-3 text-center">
                           <div className="font-medium text-slate-800">{contact.automationsEntered || 0} entered</div>
                           <div className="text-[10px]">
@@ -1011,7 +959,6 @@ Lead Profile:
                           </div>
                         </td>
 
-                        {/* Event Attendance Status */}
                         <td className="py-2.5 px-3 text-center">
                           {contact.approvalStatus ? (
                             <div>
@@ -1046,6 +993,16 @@ Lead Profile:
         {/* CAMPAIGNS TAB */}
         {activeTab === 'CAMPAIGNS' && (
           <div className="space-y-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Broadcast Campaigns</h3>
+                <p className="text-xs text-slate-500">Live campaign delivery and engagement metrics from ActiveCampaign.</p>
+              </div>
+              <span className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-lg font-medium">
+                {campaigns.length} Campaigns Retrieved
+              </span>
+            </div>
+
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="bg-slate-50 uppercase text-slate-600 font-semibold text-[11px] border-b border-slate-200">
@@ -1053,20 +1010,43 @@ Lead Profile:
                     <th className="py-3 px-4">Campaign Name</th>
                     <th className="py-3 px-4">Date Sent</th>
                     <th className="py-3 px-4 text-right">Recipients</th>
+                    <th className="py-3 px-4 text-right">Delivered</th>
                     <th className="py-3 px-4 text-right">Opens</th>
+                    <th className="py-3 px-4 text-right">Open Rate</th>
                     <th className="py-3 px-4 text-right">Clicks</th>
+                    <th className="py-3 px-4 text-right">Click Rate</th>
+                    <th className="py-3 px-4 text-right">Unsubscribes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {MOCK_CAMPAIGNS.map(camp => (
-                    <tr key={camp.id} className="hover:bg-slate-50">
-                      <td className="py-3.5 px-4 font-semibold text-slate-900">{camp.name}</td>
-                      <td className="py-3.5 px-4 text-slate-500">{camp.dateSent}</td>
-                      <td className="py-3.5 px-4 text-right">{camp.recipients}</td>
-                      <td className="py-3.5 px-4 text-right text-indigo-600 font-semibold">{camp.openRate}%</td>
-                      <td className="py-3.5 px-4 text-right text-emerald-600 font-semibold">{camp.clickRate}%</td>
+                  {campaigns.length === 0 ? (
+                    <tr>
+                      <td colSpan="9" className="py-8 text-center text-slate-400 text-xs">
+                        No campaigns found or still syncing from ActiveCampaign...
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    campaigns.map(camp => (
+                      <tr 
+                        key={camp.id} 
+                        onClick={() => setSelectedCampaign(camp)}
+                        className="hover:bg-indigo-50/40 cursor-pointer transition"
+                      >
+                        <td className="py-3.5 px-4 font-semibold text-slate-900 flex items-center space-x-2">
+                          <Send className="h-3.5 w-3.5 text-indigo-500" />
+                          <span>{camp.name}</span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500">{camp.dateSent}</td>
+                        <td className="py-3.5 px-4 text-right font-medium">{camp.recipients}</td>
+                        <td className="py-3.5 px-4 text-right text-slate-600">{camp.delivered}</td>
+                        <td className="py-3.5 px-4 text-right font-semibold text-indigo-600">{camp.opens}</td>
+                        <td className="py-3.5 px-4 text-right font-bold text-indigo-600">{camp.openRate}%</td>
+                        <td className="py-3.5 px-4 text-right font-semibold text-emerald-600">{camp.clicks}</td>
+                        <td className="py-3.5 px-4 text-right font-bold text-emerald-600">{camp.clickRate}%</td>
+                        <td className="py-3.5 px-4 text-right text-slate-500">{camp.unsubscribes}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1075,17 +1055,55 @@ Lead Profile:
 
         {/* AUTOMATIONS TAB */}
         {activeTab === 'AUTOMATIONS' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {MOCK_AUTOMATIONS.map(auto => (
-              <div key={auto.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-                <h3 className="font-bold text-slate-900">{auto.name}</h3>
-                <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
-                  <div className="p-2 bg-slate-50 rounded-lg">Entries: {auto.entries}</div>
-                  <div className="p-2 bg-amber-50 text-amber-800 rounded-lg">Active: {auto.active}</div>
-                  <div className="p-2 bg-emerald-50 text-emerald-800 rounded-lg">Done: {auto.completed}</div>
-                </div>
+          <div className="space-y-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">ActiveCampaign Automation Flows</h3>
+                <p className="text-xs text-slate-500">Live workflows, entries, completions, and journey tracking.</p>
               </div>
-            ))}
+              <span className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-lg font-medium">
+                {automations.length} Automations
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {automations.length === 0 ? (
+                <div className="col-span-2 p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+                  No automations returned from ActiveCampaign API.
+                </div>
+              ) : (
+                automations.map(auto => (
+                  <div key={auto.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          auto.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {auto.status}
+                        </span>
+                        <h3 className="font-bold text-slate-900 text-sm mt-1">{auto.name}</h3>
+                      </div>
+                      <Workflow className="h-4 w-4 text-indigo-600" />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
+                      <div className="p-2 bg-slate-50 rounded-lg">
+                        <span className="text-slate-400 text-[10px] block">Entries</span>
+                        <span className="font-bold text-slate-900">{auto.entries}</span>
+                      </div>
+                      <div className="p-2 bg-indigo-50 rounded-lg">
+                        <span className="text-indigo-600 text-[10px] block">Emails Sent</span>
+                        <span className="font-bold text-indigo-700">{auto.emailsSent}</span>
+                      </div>
+                      <div className="p-2 bg-emerald-50 rounded-lg">
+                        <span className="text-emerald-600 text-[10px] block">Unique Opens</span>
+                        <span className="font-bold text-emerald-700">{auto.uniqueOpens}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
@@ -1248,6 +1266,75 @@ Lead Profile:
                 onClick={() => setIsConnectModalOpen(false)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg transition"
               >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STRATEGIST AI MODAL */}
+      {isAiModalOpen && (
+        <div className="bg-slate-900/50 backdrop-blur-xs fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-slate-200">
+            <div className="p-5 border-b border-slate-200 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="h-5 w-5 text-amber-300" />
+                <h3 className="text-base font-bold">Fenyx Marketing Strategist AI</h3>
+              </div>
+              <button onClick={() => setIsAiModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 flex-1 overflow-y-auto space-y-4 text-xs">
+              {aiAnalysisLoading ? (
+                <div className="py-12 text-center text-slate-500">
+                  <RefreshCw className="h-6 w-6 animate-spin mx-auto text-indigo-600 mb-2" />
+                  Generating executive revenue briefing...
+                </div>
+              ) : (
+                <div className="whitespace-pre-line text-slate-800 leading-relaxed font-sans bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  {aiAnalysisResult || 'Select a prompt below to begin.'}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+              <button onClick={() => setIsAiModalOpen(false)} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-semibold">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SPEND MANAGEMENT MODAL */}
+      {isSpendModalOpen && (
+        <div className="bg-slate-900/50 backdrop-blur-xs fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden flex flex-col shadow-2xl border border-slate-200">
+            <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900">Manage Marketing Spend</h3>
+              <button onClick={() => setIsSpendModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3 text-xs flex-1 overflow-y-auto">
+              {metrics.sourceRows.map(r => (
+                <div key={r.source} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="font-semibold text-slate-800">{r.source}</span>
+                  <div className="flex items-center space-x-1">
+                    <span className="text-slate-500">$</span>
+                    <input
+                      type="number"
+                      value={sourceSpend[r.source] !== undefined ? sourceSpend[r.source] : ''}
+                      onChange={(e) => handleUpdateSpend(r.source, e.target.value)}
+                      className="w-24 p-1.5 bg-white border border-slate-300 rounded text-right font-medium outline-none"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+              <button onClick={() => setIsSpendModalOpen(false)} className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg">
                 Done
               </button>
             </div>
