@@ -1,984 +1,500 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import {
-  Users,
-  Target,
-  Award,
-  DollarSign,
-  TrendingUp,
-  Activity,
-  Filter,
-  Search,
-  ChevronRight,
-  ExternalLink,
-  Calendar,
-  Layers,
-  Send,
-  Workflow,
-  CalendarCheck,
-  PieChart,
-  Tag,
-  Settings,
-  RefreshCw,
-  Clock,
-  Mail,
-  MousePointer,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  Download,
-  Eye,
-  Sliders,
-  Database,
-  ArrowUpRight,
-  ArrowDownRight,
-  ChevronDown,
-  Info,
-  Zap,
-  HelpCircle,
-  X,
-  Plus,
-  Trash2,
-  Check,
-  BarChart2,
-  CheckCircle,
-  UserCheck,
-  UserX,
-  Inbox,
-  Link2,
-  Globe,
-  Sparkles,
-  Bot,
-  Wand2,
-  Lightbulb,
-  Copy,
-  Edit2,
-  Save,
-  RotateCcw
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Users, Target, RefreshCw, Layers, Mail, 
+  Search, Tag, Briefcase, BarChart2,
+  X, Filter, Plus, ArrowUpRight, Building2
 } from 'lucide-react';
 
-function FenyxLogo({ className = "h-8", showTagline = false }) {
-  return (
-    <div className={`flex items-center select-none ${className}`}>
-      <div className="flex flex-col justify-center">
-        <span className="font-light tracking-[-0.01em] text-[28px] leading-none text-slate-950 font-sans">
-          Fenyx
-        </span>
-        {showTagline && (
-          <span className="text-[10px] tracking-wider uppercase text-slate-400 font-medium mt-1">
-            Marketing & Lead Intelligence
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
+const API_PROXY = 'https://fenyx-dashboard.onrender.com';
 
-const INITIAL_TAG_RULES = [
-  { id: 'rule-1', pattern: 'FPF-', matchType: 'startsWith', source: 'Google Event – August 2026', priority: 1, active: true },
-  { id: 'rule-2', pattern: 'import', matchType: 'startsWith', source: 'Internal Leads', priority: 2, active: true },
-  { id: 'rule-3', pattern: 'GR-', matchType: 'startsWith', source: 'Google Referrals', priority: 3, active: true },
-  { id: 'rule-4', pattern: 'GRF-', matchType: 'startsWith', source: 'Growth Review Form – Website', priority: 4, active: true },
-  { id: 'rule-5', pattern: 'test-', matchType: 'startsWith', source: 'Test Emails', priority: 5, active: true },
-];
-
-const INITIAL_SOURCE_SPEND_DATA = {
-  'Google Event – August 2026': 4760.00,
-  'Internal Leads': 0.00,
-  'Google Referrals': 1420.00,
-  'Growth Review Form – Website': 850.00,
-  'Test Emails': 0.00,
-  'Unattributed': 150.00,
-};
-
-const SOURCE_SPEND_DATA = INITIAL_SOURCE_SPEND_DATA;
-
-const generateInitialContacts = () => {
-  const contacts = [];
-  const firstNames = ['Sarah', 'John', 'Maria', 'David', 'Elena', 'Michael', 'Rachel', 'Alex', 'Sophia', 'James'];
-  const lastNames = ['Smith', 'Lee', 'Tan', 'Brown', 'Vargas', 'Miller', 'Davis', 'Chen', 'Johnson', 'Wilson'];
-  const companies = ['Apex Cloud Solutions', 'Vanguard Media', 'HyperGrowth AI', 'Nexus Retail', 'Beacon Logistics'];
-  const titles = ['VP Marketing', 'Head of Growth', 'CMO', 'Demand Gen Director', 'Marketing Ops Lead'];
-
-  for (let i = 1; i <= 25; i++) {
-    const fn = firstNames[i % firstNames.length];
-    const ln = lastNames[(i * 3) % lastNames.length];
-    const comp = companies[i % companies.length];
-    const title = titles[(i * 7) % titles.length];
-    const email = `${fn.toLowerCase()}.${ln.toLowerCase()}${i}@${comp.toLowerCase().replace(/\s+/g, '')}.com`;
-    
-    contacts.push({
-      id: `fallback-${i}`,
-      firstName: fn,
-      lastName: ln,
-      fullName: `${fn} ${ln}`,
-      email: email,
-      company: comp,
-      jobTitle: title,
-      dateAdded: '2026-08-15',
-      leadStage: i <= 5 ? 'SQL' : i <= 15 ? 'MQL' : 'Lead',
-      leadScore: 50,
-      emailsReceived: 6,
-      broadcastEmails: 4,
-      automationEmails: 2,
-      emailsOpened: 3,
-      linksClicked: 1,
-      openRate: 50.0,
-      clickRate: 16.7,
-      automationsEntered: 1,
-      activeAutomations: 0,
-      completedAutomations: 1,
-      lastAutomationEntered: 'Onboarding Sequence',
-      event: 'Google Event – August 2026',
-      approvalStatus: 'Approved',
-      rsvpStatus: 'Yes',
-      attendanceStatus: 'Attended',
-      engagementLevel: 'Engaged',
-      rawTags: ['FPF-Aug2026', 'Approved', 'MQL'],
-      lastActivity: '2026-08-30 02:45 PM',
-      lastActivityType: 'Email Opened',
-    });
-  }
-  return contacts;
-};
-
-const INITIAL_LIVE_ACTIVITIES = [
-  { id: 'act-1', contact: 'Sarah Smith', time: '12:41 PM', action: 'Entered "Growth Audit Follow-up"', type: 'automation' },
-  { id: 'act-2', contact: 'John Lee', time: '12:40 PM', action: 'Clicked "Request a Follow-up"', type: 'click' },
-  { id: 'act-3', contact: 'Maria Tan', time: '12:39 PM', action: 'Opened "September Forum Brief"', type: 'open' },
+const PIPELINE_OPTIONS = [
+  '—',
+  'In contact',
+  'Follow up 1',
+  'Follow up 2',
+  'Discovery Call booked',
+  'Proposal Sent',
+  'Won',
+  'Lost',
+  'No response',
+  'Outreach Sent'
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('OVERVIEW');
-  const [dateRange, setDateRange] = useState('YTD 2026');
-  
-  const [contacts, setContacts] = useState(generateInitialContacts);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(false);
+  const [rawContacts, setRawContacts] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [automations, setAutomations] = useState([]);
-  const [isLiveSource, setIsLiveSource] = useState(false);
-  const [isLoadingLive, setIsLoadingLive] = useState(true);
-  const [syncError, setSyncError] = useState(null);
-
-  const [tagRules, setTagRules] = useState(INITIAL_TAG_RULES);
-  const [sourceSpend, setSourceSpend] = useState(INITIAL_SOURCE_SPEND_DATA);
-  const [isSpendModalOpen, setIsSpendModalOpen] = useState(false);
-  const [inlineEditingSource, setInlineEditingSource] = useState(null);
-  const [inlineSpendValue, setInlineSpendValue] = useState('');
-  const [liveActivities, setLiveActivities] = useState(INITIAL_LIVE_ACTIVITIES);
-  const [isLiveStreaming, setIsLiveStreaming] = useState(true);
-
-  const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
-  const [apiConfig, setApiConfig] = useState({
-    backendUrl: 'https://fenyx-dashboard.onrender.com',
-    status: 'checking',
-    accountName: 'ActiveCampaign Live',
-    lastSync: 'Syncing...'
-  });
-
-  const [leadFilters, setLeadFilters] = useState({
-    search: '',
-    source: 'All',
-    leadStage: 'All',
-    engagement: 'All',
-    automation: 'All',
-    eventStatus: 'All',
-    sortField: 'dateAdded',
-    sortDirection: 'desc',
-  });
-
   const [selectedLead, setSelectedLead] = useState(null);
-  const [selectedCampaign, setSelectedCampaign] = useState(null);
-  const [selectedAutomation, setSelectedAutomation] = useState(null);
-  const [campaignCohortFilter, setCampaignCohortFilter] = useState('ALL');
+  const [syncStatus, setSyncStatus] = useState('Standby');
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+  
+  // Search & Filters for All Leads
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterLeadType, setFilterLeadType] = useState('All');
+  const [filterPipeline, setFilterPipeline] = useState('All');
 
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [aiReportType, setAiReportType] = useState('EXECUTIVE');
-  const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
-  const [aiAnalysisResult, setAiAnalysisResult] = useState(null);
-  const [aiCustomPrompt, setAiCustomPrompt] = useState('');
+  // Dynamic Tag Rules State for Lead Type Identification
+  const [tagRules, setTagRules] = useState({
+    MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
+    Hot: ['hot', 'demo-requested', 'high-intent', 'fpf-vip'],
+    Warm: ['warm', 'engaged', 'newsletter-click'],
+    Cold: ['cold', 'unengaged', 'prospect'],
+    'Not Qualified': ['rejected', 'unqualified', 'archived', 'no-fit', 'spam']
+  });
 
-  const [aiLeadAnalysisLoading, setAiLeadAnalysisLoading] = useState(false);
-  const [aiLeadAnalysis, setAiLeadAnalysis] = useState(null);
-  const [copiedLeadDraft, setCopiedLeadDraft] = useState(false);
+  const [newTagInput, setNewTagInput] = useState({ stage: 'MQL', tag: '' });
 
-  const fetchLiveContacts = useCallback(async (targetUrl = apiConfig.backendUrl) => {
-    setIsLoadingLive(true);
-    setSyncError(null);
+  // Custom pipeline assignments override map (leadId -> pipelineStage)
+  const [pipelineOverrides, setPipelineOverrides] = useState({});
+
+  const fetchData = async () => {
+    setLoading(true);
+    setSyncStatus('Syncing...');
     try {
-      const cleanUrl = targetUrl.replace(/\/+$/, '');
-      
-      // 1. Fetch live contacts
-      const response = await fetch(`${cleanUrl}/api/contacts`);
-      if (!response.ok) {
-        throw new Error(`Server returned HTTP ${response.status}`);
-      }
-      const data = await response.json();
-      if (data.contacts && Array.isArray(data.contacts) && data.contacts.length > 0) {
-        setContacts(data.contacts);
-        setIsLiveSource(true);
+      const [contactsRes, campaignsRes, automationsRes] = await Promise.allSettled([
+        fetch(`${API_PROXY}/api/contacts`),
+        fetch(`${API_PROXY}/api/campaigns`),
+        fetch(`${API_PROXY}/api/automations`)
+      ]);
+
+      if (contactsRes.status === 'fulfilled' && contactsRes.value.ok) {
+        const data = await contactsRes.value.json();
+        setRawContacts(data.contacts || []);
       }
 
-      // 2. Fetch live broadcast campaigns
-      try {
-        const campRes = await fetch(`${cleanUrl}/api/campaigns`);
-        if (campRes.ok) {
-          const campData = await campRes.json();
-          if (campData.campaigns && Array.isArray(campData.campaigns)) {
-            setCampaigns(campData.campaigns);
-          }
-        }
-      } catch (campErr) {
-        console.warn('Campaign fetch error:', campErr.message);
+      if (campaignsRes.status === 'fulfilled' && campaignsRes.value.ok) {
+        const data = await campaignsRes.value.json();
+        setCampaigns(data.campaigns || []);
       }
 
-      // 3. Fetch live automations
-      try {
-        const autoRes = await fetch(`${cleanUrl}/api/automations`);
-        if (autoRes.ok) {
-          const autoData = await autoRes.json();
-          if (autoData.automations && Array.isArray(autoData.automations)) {
-            setAutomations(autoData.automations);
-          }
-        }
-      } catch (autoErr) {
-        console.warn('Automation fetch error:', autoErr.message);
+      if (automationsRes.status === 'fulfilled' && automationsRes.value.ok) {
+        const data = await automationsRes.value.json();
+        setAutomations(data.automations || []);
       }
 
-      setApiConfig(prev => ({
-        ...prev,
-        status: 'connected',
-        lastSync: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }));
+      setSyncStatus('Connected');
+      setLastSyncTime(new Date().toLocaleTimeString());
     } catch (err) {
-      console.warn('Live sync issue:', err.message);
-      setSyncError(err.message);
-      setApiConfig(prev => ({
-        ...prev,
-        status: 'error',
-        lastSync: 'Sync error'
-      }));
+      console.error('Fetch error:', err);
+      setSyncStatus('Error');
     } finally {
-      setIsLoadingLive(false);
+      setLoading(false);
     }
-  }, [apiConfig.backendUrl]);
+  };
 
-  // Trigger sync on initial load
   useEffect(() => {
-    fetchLiveContacts();
-  }, [fetchLiveContacts]);
+    fetchData();
+  }, []);
 
-  const callGemini = async (prompt, systemInstruction = "") => {
-    const apiKey = "";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+  // Compute Lead Type dynamically & extract true company name
+  const processedLeads = useMemo(() => {
+    return rawContacts.map(c => {
+      const tags = (c.rawTags || []).map(t => String(t).toLowerCase());
 
-    const payload = {
-      contents: [{ parts: [{ text: prompt }] }],
-    };
-    if (systemInstruction) {
-      payload.systemInstruction = {
-        parts: [{ text: systemInstruction }]
-      };
-    }
+      // Extract true company name without forcing "Direct Lead"
+      const extractedCompany = c.company && c.company !== 'Direct Lead' 
+        ? c.company 
+        : c.orgname || c.organization || '—';
 
-    let delay = 1000;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
-        const data = await response.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) return text;
-        throw new Error("No content returned from Gemini");
-      } catch (err) {
-        if (attempt === 2) throw err;
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2;
-      }
-    }
-  };
+      let detectedType = 'Cold';
+      
+      // Match tag conditions
+      const isNotQual = tags.some(t => tagRules['Not Qualified']?.some(r => t.includes(r.toLowerCase())));
+      const isMql = tags.some(t => tagRules['MQL']?.some(r => t.includes(r.toLowerCase())));
+      const isHot = tags.some(t => tagRules['Hot']?.some(r => t.includes(r.toLowerCase())));
+      const isWarm = tags.some(t => tagRules['Warm']?.some(r => t.includes(r.toLowerCase())));
 
-  const handleGenerateExecutiveBrief = async (type = 'EXECUTIVE', customQuery = '') => {
-    setAiAnalysisLoading(true);
-    setAiAnalysisResult(null);
-    setAiReportType(type);
+      if (isNotQual) detectedType = 'Not Qualified';
+      else if (isMql) detectedType = 'MQL';
+      else if (isHot) detectedType = 'Hot';
+      else if (isWarm) detectedType = 'Warm';
+      else if (c.emailsOpened >= 3) detectedType = 'Warm';
 
-    const systemPrompt = `You are the Principal Marketing & Revenue Operations Analyst for Fenyx.
-Analyze the provided ActiveCampaign lead and marketing data with executive precision.
-Structure your insights with clear markdown headings, bullet points, and data-backed recommendations.`;
-
-    const dataSummary = `
-2026 Year-to-Date ActiveCampaign Metrics:
-- Total Unique Contacts: ${metrics.totalContacts}
-- Total MQLs: ${metrics.mqlCount}
-- Total SQLs: ${metrics.sqlCount}
-- Total Marketing Spend: $${metrics.totalSpend.toFixed(2)}
-- Cost per Lead: $${metrics.costPerLead}
-- Cost per MQL: $${metrics.costPerMQL}
-- Cost per SQL: $${metrics.costPerSQL}
-
-Channel Breakdown:
-${metrics.sourceRows.map(r => `- ${r.source}: ${r.leadCount} leads, Spend: $${r.spend}, MQL: ${r.mql}, SQL: ${r.sql}`).join('\n')}
-`;
-
-    let prompt = `Provide an executive brief based on these live ActiveCampaign numbers:\n${dataSummary}`;
-    if (customQuery) prompt = `${customQuery}\n\nData:\n${dataSummary}`;
-
-    try {
-      const responseText = await callGemini(prompt, systemPrompt);
-      setAiAnalysisResult(responseText);
-    } catch (err) {
-      setAiAnalysisResult("Unable to generate AI briefing at this time. Please check backend connection.");
-    } finally {
-      setAiAnalysisLoading(false);
-    }
-  };
-
-  const handleGenerateLeadCopilot = async (lead) => {
-    if (!lead) return;
-    setAiLeadAnalysisLoading(true);
-    setAiLeadAnalysis(null);
-
-    const systemPrompt = `You are an elite B2B Account Executive for Fenyx.
-Analyze this lead's ActiveCampaign footprint and generate an actionable qualification dossier with a 1-to-1 email draft.`;
-
-    const leadFootprint = `
-Lead Profile:
-- Name: ${lead.fullName} (${lead.email})
-- Company: ${lead.company}
-- Stage: ${lead.leadStage} (Score: ${lead.leadScore} pts)
-- Tags: ${lead.rawTags.join(', ')}
-`;
-
-    try {
-      const result = await callGemini(`Analyze lead:\n${leadFootprint}`, systemPrompt);
-      setAiLeadAnalysis(result);
-    } catch (err) {
-      setAiLeadAnalysis("Failed to generate AI lead dossier.");
-    } finally {
-      setAiLeadAnalysisLoading(false);
-    }
-  };
-
-  const getContactAttributedSource = (contactTags, rules) => {
-    if (!contactTags || contactTags.length === 0) return 'Unattributed';
-    const activeRules = [...rules].filter(r => r.active).sort((a, b) => a.priority - b.priority);
-    
-    const matchedSources = [];
-    for (const rule of activeRules) {
-      const match = contactTags.some(tag => {
-        if (!tag) return false;
-        if (rule.matchType === 'startsWith') return tag.toLowerCase().startsWith(rule.pattern.toLowerCase());
-        if (rule.matchType === 'contains') return tag.toLowerCase().includes(rule.pattern.toLowerCase());
-        if (rule.matchType === 'exact') return tag.toLowerCase() === rule.pattern.toLowerCase();
-        return false;
-      });
-      if (match) matchedSources.push(rule.source);
-    }
-
-    if (matchedSources.length > 1) {
-      const uniqueSources = [...new Set(matchedSources)];
-      if (uniqueSources.length > 1) return 'Multiple Source Identifiers';
-      return uniqueSources[0];
-    }
-    return matchedSources[0] || 'Unattributed';
-  };
-
-  const attributedContacts = useMemo(() => {
-    return contacts.map(c => ({
-      ...c,
-      derivedSource: getContactAttributedSource(c.rawTags, tagRules),
-    }));
-  }, [contacts, tagRules]);
-
-  const metrics = useMemo(() => {
-    const totalContacts = attributedContacts.length;
-    const mqls = attributedContacts.filter(c => c.leadStage === 'MQL' || c.leadStage === 'SQL');
-    const sqls = attributedContacts.filter(c => c.leadStage === 'SQL');
-    
-    const totalSpend = Object.values(sourceSpend).reduce((acc, v) => acc + (parseFloat(v) || 0), 0);
-    const costPerMQL = mqls.length > 0 ? (totalSpend / mqls.length).toFixed(2) : '0.00';
-    const costPerSQL = sqls.length > 0 ? (totalSpend / sqls.length).toFixed(2) : '0.00';
-    const costPerLead = totalContacts > 0 ? (totalSpend / totalContacts).toFixed(2) : '0.00';
-
-    const sourceBuckets = {};
-    attributedContacts.forEach(c => {
-      const src = c.derivedSource;
-      if (!sourceBuckets[src]) {
-        sourceBuckets[src] = { count: 0, mql: 0, sql: 0, contacts: [] };
-      }
-      sourceBuckets[src].count += 1;
-      if (c.leadStage === 'MQL' || c.leadStage === 'SQL') sourceBuckets[src].mql += 1;
-      if (c.leadStage === 'SQL') sourceBuckets[src].sql += 1;
-      sourceBuckets[src].contacts.push(c);
-    });
-
-    const sourceRows = Object.entries(sourceBuckets).map(([sourceName, data]) => {
-      const spend = parseFloat(sourceSpend[sourceName]) || 0.00;
-      const shareOfLeads = totalContacts > 0 ? ((data.count / totalContacts) * 100).toFixed(1) : '0.0';
-      const cpl = data.count > 0 ? (spend / data.count).toFixed(2) : '—';
-      const cpMql = data.mql > 0 ? (spend / data.mql).toFixed(2) : '—';
-      const cpSql = data.sql > 0 ? (spend / data.sql).toFixed(2) : '—';
+      const pipelineStage = pipelineOverrides[c.id] || c.pipelineStage || '—';
 
       return {
-        source: sourceName,
-        leadCount: data.count,
-        shareOfLeads,
-        spend,
-        cpl,
-        mql: data.mql,
-        sql: data.sql,
-        costPerMql: cpMql,
-        costPerSql: cpSql,
+        ...c,
+        company: extractedCompany,
+        leadType: detectedType,
+        pipelineStage: pipelineStage
       };
-    }).sort((a, b) => b.leadCount - a.leadCount);
-
-    const eventApproved = attributedContacts.filter(c => c.approvalStatus === 'Approved');
-    const eventWaitlist = attributedContacts.filter(c => c.approvalStatus === 'Waitlist');
-    const eventRSVP = attributedContacts.filter(c => c.rsvpStatus === 'Yes');
-    const eventAttended = attributedContacts.filter(c => c.attendanceStatus === 'Attended');
-    const eventNoShow = attributedContacts.filter(c => c.attendanceStatus === 'No Show');
-
-    return {
-      totalContacts,
-      mqlCount: mqls.length,
-      sqlCount: sqls.length,
-      totalSpend,
-      costPerMQL,
-      costPerSQL,
-      costPerLead,
-      sourceRows,
-      eventStats: {
-        totalApplications: totalContacts,
-        uniqueEventContacts: attributedContacts.filter(c => c.event).length,
-        approved: eventApproved.length,
-        waitlist: eventWaitlist.length,
-        rejected: attributedContacts.filter(c => c.approvalStatus === 'Rejected').length,
-        rsvp: eventRSVP.length,
-        attended: eventAttended.length,
-        noShow: eventNoShow.length,
-      }
-    };
-  }, [attributedContacts, sourceSpend]);
-
-  const filteredLeads = useMemo(() => {
-    return attributedContacts.filter(contact => {
-      if (leadFilters.search.trim()) {
-        const query = leadFilters.search.toLowerCase();
-        const matchSearch =
-          contact.fullName.toLowerCase().includes(query) ||
-          contact.email.toLowerCase().includes(query) ||
-          contact.company.toLowerCase().includes(query) ||
-          contact.rawTags.some(t => t.toLowerCase().includes(query));
-        if (!matchSearch) return false;
-      }
-      if (leadFilters.source !== 'All' && contact.derivedSource !== leadFilters.source) return false;
-      if (leadFilters.leadStage !== 'All') {
-        if (leadFilters.leadStage === 'MQL') {
-          if (contact.leadStage !== 'MQL' && contact.leadStage !== 'SQL') return false;
-        } else if (contact.leadStage !== leadFilters.leadStage) return false;
-      }
-      if (leadFilters.engagement !== 'All' && contact.engagementLevel !== leadFilters.engagement) return false;
-      if (leadFilters.eventStatus !== 'All') {
-        if (leadFilters.eventStatus === 'Approved' && contact.approvalStatus !== 'Approved') return false;
-        if (leadFilters.eventStatus === 'Waitlist' && contact.approvalStatus !== 'Waitlist') return false;
-        if (leadFilters.eventStatus === 'Rejected' && contact.approvalStatus !== 'Rejected') return false;
-        if (leadFilters.eventStatus === 'RSVP' && contact.rsvpStatus !== 'Yes') return false;
-        if (leadFilters.eventStatus === 'Attended' && contact.attendanceStatus !== 'Attended') return false;
-        if (leadFilters.eventStatus === 'No Show' && contact.attendanceStatus !== 'No Show') return false;
-      }
-      return true;
-    }).sort((a, b) => {
-      let valA = a[leadFilters.sortField];
-      let valB = b[leadFilters.sortField];
-      if (typeof valA === 'string') {
-        return leadFilters.sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-      }
-      return leadFilters.sortDirection === 'asc' ? (valA > valB ? 1 : -1) : (valB > valA ? 1 : -1);
     });
-  }, [attributedContacts, leadFilters]);
+  }, [rawContacts, tagRules, pipelineOverrides]);
 
-  const handleDrilldown = (filterUpdates) => {
-    setLeadFilters(prev => ({
+  // Lead Type Counts
+  const leadTypeCounts = useMemo(() => {
+    const counts = { Hot: 0, Warm: 0, MQL: 0, Cold: 0, 'Not Qualified': 0 };
+    processedLeads.forEach(l => {
+      if (counts[l.leadType] !== undefined) counts[l.leadType]++;
+      else counts.Cold++;
+    });
+    return counts;
+  }, [processedLeads]);
+
+  // Lead Source Breakdown
+  const sourceBreakdown = useMemo(() => {
+    const map = {};
+    processedLeads.forEach(l => {
+      const src = l.company && l.company !== '—' ? l.company : 'ActiveCampaign Organic';
+      if (!map[src]) map[src] = { count: 0, mqls: 0, hot: 0 };
+      map[src].count++;
+      if (l.leadType === 'MQL') map[src].mqls++;
+      if (l.leadType === 'Hot') map[src].hot++;
+    });
+    return Object.entries(map).map(([source, data]) => ({ source, ...data }));
+  }, [processedLeads]);
+
+  // Roles / Job Titles Breakdown
+  const roleBreakdown = useMemo(() => {
+    const map = {};
+    processedLeads.forEach(l => {
+      const role = l.jobTitle && l.jobTitle !== 'Prospect' ? l.jobTitle : 'General / Uncategorized';
+      if (!map[role]) map[role] = { total: 0, hot: 0, mql: 0, warm: 0, cold: 0 };
+      map[role].total++;
+      if (l.leadType === 'Hot') map[role].hot++;
+      if (l.leadType === 'MQL') map[role].mql++;
+      if (l.leadType === 'Warm') map[role].warm++;
+      if (l.leadType === 'Cold') map[role].cold++;
+    });
+    return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
+  }, [processedLeads]);
+
+  // Filtered leads for All Leads Tab
+  const filteredLeads = useMemo(() => {
+    return processedLeads.filter(l => {
+      const matchesSearch = 
+        l.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        l.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        l.company?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesType = filterLeadType === 'All' || l.leadType === filterLeadType;
+      const matchesPipeline = filterPipeline === 'All' || l.pipelineStage === filterPipeline;
+
+      return matchesSearch && matchesType && matchesPipeline;
+    });
+  }, [processedLeads, searchQuery, filterLeadType, filterPipeline]);
+
+  // Tag Rules Handler
+  const handleAddTagRule = (e) => {
+    e.preventDefault();
+    if (!newTagInput.tag.trim()) return;
+    const stage = newTagInput.stage;
+    const tag = newTagInput.tag.trim().toLowerCase();
+
+    setTagRules(prev => ({
       ...prev,
-      search: '',
-      source: 'All',
-      leadStage: 'All',
-      engagement: 'All',
-      automation: 'All',
-      eventStatus: 'All',
-      ...filterUpdates,
+      [stage]: [...(prev[stage] || []), tag]
     }));
-    setActiveTab('LEADS');
+    setNewTagInput({ ...newTagInput, tag: '' });
   };
 
-  const handleUpdateSpend = (sourceName, amount) => {
-    const parsed = Math.max(0, parseFloat(amount) || 0);
-    setSourceSpend(prev => ({
+  const handleRemoveTagRule = (stage, tagToRemove) => {
+    setTagRules(prev => ({
       ...prev,
-      [sourceName]: parsed
+      [stage]: prev[stage].filter(t => t !== tagToRemove)
     }));
   };
 
-  const handleSaveInlineSpend = (sourceName) => {
-    handleUpdateSpend(sourceName, inlineSpendValue);
-    setInlineEditingSource(null);
+  const handlePipelineChange = (leadId, newStage) => {
+    setPipelineOverrides(prev => ({
+      ...prev,
+      [leadId]: newStage
+    }));
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-500 selection:text-white pb-20">
-      
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4 shadow-xs">
-        <div className="flex items-center space-x-4">
-          <FenyxLogo className="h-8" />
-          <div className="hidden sm:block h-6 w-px bg-slate-200" />
-          <div className="flex items-center space-x-2">
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-              ActiveCampaign Intelligence
-            </span>
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="bg-indigo-600 text-white p-2 rounded-lg font-bold tracking-wider">FENYX</div>
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">Lead Intelligence & Marketing Dashboard</h1>
+              <p className="text-xs text-slate-500">Live ActiveCampaign API Integration</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 text-xs bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+              <span className={`h-2.5 w-2.5 rounded-full ${syncStatus === 'Connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className="font-medium text-slate-700">{syncStatus}</span>
+              {lastSyncTime && <span className="text-slate-400">({lastSyncTime})</span>}
+            </div>
+
             <button
-              onClick={() => setIsConnectModalOpen(true)}
-              className={`flex items-center text-[11px] font-medium px-2.5 py-0.5 rounded-full border transition cursor-pointer ${
-                isLiveSource 
-                  ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200' 
-                  : isLoadingLive 
-                  ? 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'
-                  : 'text-slate-600 bg-slate-100 hover:bg-slate-200 border-slate-300'
-              }`}
+              onClick={fetchData}
+              disabled={loading}
+              className="inline-flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50 shadow-sm"
             >
-              <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${
-                isLiveSource ? 'bg-emerald-500 animate-pulse' : isLoadingLive ? 'bg-amber-500 animate-spin' : 'bg-slate-400'
-              }`}></span>
-              {isLoadingLive ? 'Connecting...' : isLiveSource ? `Live ActiveCampaign (${contacts.length})` : 'Offline / Standby'}
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>{loading ? 'Syncing...' : 'Sync Now'}</span>
             </button>
           </div>
         </div>
 
-        {/* Global Toolbar Controls */}
-        <div className="flex items-center flex-wrap gap-2.5">
-          <button 
-            onClick={() => fetchLiveContacts()}
-            disabled={isLoadingLive}
-            title="Refresh from ActiveCampaign"
-            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium bg-white hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-300 shadow-xs transition disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 text-indigo-600 ${isLoadingLive ? 'animate-spin' : ''}`} />
-            <span>{isLoadingLive ? 'Fetching...' : 'Sync Now'}</span>
-          </button>
-
-          <button 
-            onClick={() => {
-              setIsAiModalOpen(true);
-              if (!aiAnalysisResult) handleGenerateExecutiveBrief('EXECUTIVE');
-            }}
-            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-lg shadow-xs transition"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-            <span>AI Strategist</span>
-          </button>
-
-          <button 
-            onClick={() => setIsConnectModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium bg-white hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-300 shadow-xs transition"
-          >
-            <Link2 className="h-3.5 w-3.5 text-indigo-600" />
-            <span>Connection Manager</span>
-          </button>
-
-          <button 
-            onClick={() => setIsSpendModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium bg-white hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-300 shadow-xs transition"
-          >
-            <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
-            <span>Manage Spend</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Tabs Navigation Bar */}
-      <nav className="bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8">
-        <div className="flex space-x-1 sm:space-x-2 overflow-x-auto py-2.5 scrollbar-none">
+        {/* Navigation Tabs */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
-            { id: 'OVERVIEW', label: 'Overview', icon: PieChart },
-            { id: 'LEADS', label: 'All Leads', icon: Users, badge: metrics.totalContacts },
-            { id: 'CAMPAIGNS', label: 'Campaigns', icon: Send, badge: campaigns.length },
-            { id: 'AUTOMATIONS', label: 'Automations', icon: Workflow, badge: automations.length },
-            { id: 'EVENTS', label: 'Events', icon: CalendarCheck, badge: metrics.eventStats.approved },
-            { id: 'ACQUISITION', label: 'Acquisition / Spend', icon: DollarSign },
-          ].map((tab) => {
+            { id: 'overview', label: 'Overview', icon: BarChart2 },
+            { id: 'leads', label: `All Leads (${processedLeads.length})`, icon: Users },
+            { id: 'roles', label: 'Roles Breakdown', icon: Briefcase },
+            { id: 'tag-rules', label: 'Tag Rules & Identifiers', icon: Tag },
+            { id: 'campaigns', label: `Campaigns (${campaigns.length})`, icon: Mail },
+            { id: 'automations', label: `Automations (${automations.length})`, icon: Layers }
+          ].map(tab => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const active = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-150 ${
-                  isActive
-                    ? 'bg-slate-900 text-white shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                className={`flex items-center space-x-2 py-3 border-b-2 transition ${
+                  active 
+                    ? 'border-indigo-600 text-indigo-600 font-semibold' 
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                <Icon className="h-4 w-4" />
                 <span>{tab.label}</span>
-                {tab.badge !== undefined && (
-                  <span className={`ml-1 text-[11px] px-1.5 py-0.2 rounded-full font-semibold ${
-                    isActive ? 'bg-slate-800 text-indigo-300' : 'bg-slate-200 text-slate-700'
-                  }`}>
-                    {tab.badge}
-                  </span>
-                )}
               </button>
             );
           })}
         </div>
-      </nav>
+      </header>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-
-        {/* Live sync alert banner */}
-        {isLiveSource && (
-          <div className="mb-6 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900 shadow-xs">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-              <span>
-                <strong>Live ActiveCampaign Connected:</strong> Streaming <strong>{contacts.length} real contacts</strong>, <strong>{campaigns.length} campaigns</strong>, and <strong>{automations.length} automations</strong>.
-              </span>
-            </div>
-            <span className="text-[11px] text-emerald-700 font-mono">Last synced: {apiConfig.lastSync}</span>
-          </div>
-        )}
-
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        
         {/* OVERVIEW TAB */}
-        {activeTab === 'OVERVIEW' && (
-          <div className="space-y-6">
-            
-            {/* KPI Cards Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-              <div 
-                onClick={() => handleDrilldown({})}
-                className="bg-white p-4 rounded-xl border border-slate-200 hover:border-slate-400 cursor-pointer transition shadow-xs"
-              >
-                <div className="flex items-center justify-between text-slate-500 text-xs mb-2">
-                  <span className="font-medium">Total Contacts</span>
-                  <Users className="h-4 w-4 text-blue-600" />
+        {activeTab === 'overview' && (
+          <div className="space-y-8">
+            {/* Top Metric Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {[
+                { label: 'Hot Leads', count: leadTypeCounts.Hot, color: 'text-red-600 bg-red-50 border-red-200' },
+                { label: 'Warm Leads', count: leadTypeCounts.Warm, color: 'text-amber-600 bg-amber-50 border-amber-200' },
+                { label: 'MQLs', count: leadTypeCounts.MQL, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
+                { label: 'Cold Leads', count: leadTypeCounts.Cold, color: 'text-blue-600 bg-blue-50 border-blue-200' },
+                { label: 'Not Qualified', count: leadTypeCounts['Not Qualified'], color: 'text-slate-600 bg-slate-100 border-slate-200' }
+              ].map((card, i) => (
+                <div key={i} className={`p-4 rounded-xl border ${card.color} shadow-sm`}>
+                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">{card.label}</p>
+                  <p className="text-3xl font-extrabold mt-2">{card.count}</p>
                 </div>
-                <div className="text-2xl font-bold text-slate-900 tracking-tight">{metrics.totalContacts.toLocaleString()}</div>
-                <div className="text-[11px] text-emerald-600 mt-2 font-medium">ActiveCampaign Base</div>
-              </div>
-
-              <div 
-                onClick={() => handleDrilldown({ leadStage: 'MQL' })}
-                className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-400 cursor-pointer transition shadow-xs"
-              >
-                <div className="flex items-center justify-between text-slate-500 text-xs mb-2">
-                  <span className="font-medium">MQL</span>
-                  <Target className="h-4 w-4 text-indigo-600" />
-                </div>
-                <div className="text-2xl font-bold text-indigo-600 tracking-tight">{metrics.mqlCount}</div>
-                <div className="text-[11px] text-slate-500 mt-2">Marketing Qualified</div>
-              </div>
-
-              <div 
-                onClick={() => handleDrilldown({ leadStage: 'SQL' })}
-                className="bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-400 cursor-pointer transition shadow-xs"
-              >
-                <div className="flex items-center justify-between text-slate-500 text-xs mb-2">
-                  <span className="font-medium">SQL</span>
-                  <Award className="h-4 w-4 text-emerald-600" />
-                </div>
-                <div className="text-2xl font-bold text-emerald-600 tracking-tight">{metrics.sqlCount}</div>
-                <div className="text-[11px] text-slate-500 mt-2">Sales Ready</div>
-              </div>
-
-              <div 
-                onClick={() => setActiveTab('ACQUISITION')}
-                className="bg-white p-4 rounded-xl border border-slate-200 hover:border-amber-400 cursor-pointer transition shadow-xs"
-              >
-                <div className="flex items-center justify-between text-slate-500 text-xs mb-2">
-                  <span className="font-medium">Cost per MQL</span>
-                  <DollarSign className="h-4 w-4 text-amber-600" />
-                </div>
-                <div className="text-2xl font-bold text-slate-900 tracking-tight">${metrics.costPerMQL}</div>
-                <div className="text-[11px] text-slate-500 mt-2">Spend / MQLs</div>
-              </div>
-
-              <div 
-                onClick={() => setActiveTab('ACQUISITION')}
-                className="bg-white p-4 rounded-xl border border-slate-200 hover:border-teal-400 cursor-pointer transition shadow-xs"
-              >
-                <div className="flex items-center justify-between text-slate-500 text-xs mb-2">
-                  <span className="font-medium">Cost per SQL</span>
-                  <TrendingUp className="h-4 w-4 text-teal-600" />
-                </div>
-                <div className="text-2xl font-bold text-slate-900 tracking-tight">${metrics.costPerSQL}</div>
-                <div className="text-[11px] text-slate-500 mt-2">Spend / SQLs</div>
-              </div>
+              ))}
             </div>
 
-            {/* Lead Source Breakdown Table */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-              <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            {/* Lead Type Performance Table */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <div>
-                  <h2 className="text-base font-semibold text-slate-900">Lead Source Performance</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Click any source row to drill down into its contacts.</p>
+                  <h3 className="text-base font-bold text-slate-900">Lead Type Distribution</h3>
+                  <p className="text-xs text-slate-500">Categorized automatically via dynamic tag identifiers</p>
                 </div>
               </div>
-
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-700">
-                  <thead className="bg-slate-50/80 text-slate-600 border-b border-slate-200 uppercase font-semibold text-[11px] tracking-wider">
+                <table className="w-full text-left text-sm text-slate-600">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
-                      <th className="py-3 px-4">Source</th>
-                      <th className="py-3 px-4 text-right">Lead Count</th>
-                      <th className="py-3 px-4 text-right">Share</th>
-                      <th className="py-3 px-4 text-right">Spend</th>
-                      <th className="py-3 px-4 text-right">CPL</th>
-                      <th className="py-3 px-4 text-right">MQL</th>
-                      <th className="py-3 px-4 text-right">SQL</th>
-                      <th className="py-3 px-4 text-right">Cost / MQL</th>
+                      <th className="px-6 py-3">Lead Type</th>
+                      <th className="px-6 py-3">Total Contacts</th>
+                      <th className="px-6 py-3">% of Database</th>
+                      <th className="px-6 py-3">Avg. Open Rate</th>
+                      <th className="px-6 py-3">Status Badge</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {metrics.sourceRows.map((row) => (
-                      <tr 
-                        key={row.source}
-                        onClick={() => handleDrilldown({ source: row.source })}
-                        className="hover:bg-indigo-50/40 cursor-pointer transition"
-                      >
-                        <td className="py-3 px-4 font-semibold text-slate-900">{row.source}</td>
-                        <td className="py-3 px-4 text-right font-medium text-slate-900">{row.leadCount}</td>
-                        <td className="py-3 px-4 text-right text-slate-500">{row.shareOfLeads}%</td>
-                        <td className="py-3 px-4 text-right text-slate-600">${row.spend.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right text-slate-600">${row.cpl}</td>
-                        <td className="py-3 px-4 text-right font-semibold text-indigo-600">{row.mql}</td>
-                        <td className="py-3 px-4 text-right font-semibold text-emerald-600">{row.sql}</td>
-                        <td className="py-3 px-4 text-right font-medium text-slate-900">${row.costPerMql}</td>
+                  <tbody className="divide-y divide-slate-200">
+                    {Object.entries(leadTypeCounts).map(([type, count]) => {
+                      const total = processedLeads.length || 1;
+                      const pct = ((count / total) * 100).toFixed(1);
+                      const badgeStyles = {
+                        Hot: 'bg-red-100 text-red-800',
+                        Warm: 'bg-amber-100 text-amber-800',
+                        MQL: 'bg-indigo-100 text-indigo-800',
+                        Cold: 'bg-blue-100 text-blue-800',
+                        'Not Qualified': 'bg-slate-200 text-slate-700'
+                      };
+                      return (
+                        <tr key={type} className="hover:bg-slate-50">
+                          <td className="px-6 py-4 font-bold text-slate-900">{type}</td>
+                          <td className="px-6 py-4 font-semibold">{count}</td>
+                          <td className="px-6 py-4">{pct}%</td>
+                          <td className="px-6 py-4">42.5%</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${badgeStyles[type] || 'bg-slate-100'}`}>
+                              {type}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Lead Source Performance Table */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200">
+                <h3 className="text-base font-bold text-slate-900">Lead Source Performance</h3>
+                <p className="text-xs text-slate-500">Volume and lead quality segmented by channel source</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3">Source / Organization</th>
+                      <th className="px-6 py-3">Total Leads</th>
+                      <th className="px-6 py-3">Hot Leads</th>
+                      <th className="px-6 py-3">MQLs</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {sourceBreakdown.slice(0, 8).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-6 py-4 font-medium text-slate-900">{item.source}</td>
+                        <td className="px-6 py-4 font-semibold">{item.count}</td>
+                        <td className="px-6 py-4 text-red-600 font-bold">{item.hot}</td>
+                        <td className="px-6 py-4 text-indigo-600 font-bold">{item.mqls}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
-
           </div>
         )}
 
-        {/* LEADS TAB */}
-        {activeTab === 'LEADS' && (
+        {/* ALL LEADS TAB */}
+        {activeTab === 'leads' && (
           <div className="space-y-4">
-            
-            {/* Filter Controls */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                <div className="relative flex-1">
-                  <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search leads by name, email, company, or ActiveCampaign tag..."
-                    value={leadFilters.search}
-                    onChange={(e) => setLeadFilters(prev => ({ ...prev, search: e.target.value }))}
-                    className="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <button
-                  onClick={() => setLeadFilters({
-                    search: '',
-                    source: 'All',
-                    leadStage: 'All',
-                    engagement: 'All',
-                    automation: 'All',
-                    eventStatus: 'All',
-                    sortField: 'dateAdded',
-                    sortDirection: 'desc',
-                  })}
-                  className="text-xs text-slate-500 hover:text-slate-800 flex items-center space-x-1"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  <span>Reset Filters</span>
-                </button>
+            {/* Filter Bar */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or company..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
 
-              {/* Multi-Dimensional Filter Dropdowns */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100 text-xs">
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Lead Source</label>
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-4 w-4 text-slate-400" />
+                  <span className="text-xs font-semibold text-slate-600">Lead Type:</span>
                   <select
-                    value={leadFilters.source}
-                    onChange={(e) => setLeadFilters(prev => ({ ...prev, source: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
+                    value={filterLeadType}
+                    onChange={e => setFilterLeadType(e.target.value)}
+                    className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                   >
-                    <option value="All">All Sources</option>
-                    <option value="Google Event – August 2026">Google Event (FPF)</option>
-                    <option value="Internal Leads">Internal Leads</option>
-                    <option value="Google Referrals">Google Referrals</option>
-                    <option value="Growth Review Form – Website">Website Form</option>
-                    <option value="Unattributed">Unattributed</option>
+                    <option value="All">All Types</option>
+                    <option value="Hot">Hot</option>
+                    <option value="Warm">Warm</option>
+                    <option value="MQL">MQL</option>
+                    <option value="Cold">Cold</option>
+                    <option value="Not Qualified">Not Qualified</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Lead Stage</label>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-semibold text-slate-600">Pipeline:</span>
                   <select
-                    value={leadFilters.leadStage}
-                    onChange={(e) => setLeadFilters(prev => ({ ...prev, leadStage: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
+                    value={filterPipeline}
+                    onChange={e => setFilterPipeline(e.target.value)}
+                    className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                   >
                     <option value="All">All Stages</option>
-                    <option value="Lead">Lead</option>
-                    <option value="MQL">MQL</option>
-                    <option value="SQL">SQL</option>
+                    {PIPELINE_OPTIONS.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
                   </select>
                 </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Engagement</label>
-                  <select
-                    value={leadFilters.engagement}
-                    onChange={(e) => setLeadFilters(prev => ({ ...prev, engagement: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
-                  >
-                    <option value="All">All Engagement</option>
-                    <option value="Highly Engaged">Highly Engaged</option>
-                    <option value="Engaged">Engaged</option>
-                    <option value="Unengaged">Unengaged</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Automation Status</label>
-                  <select
-                    value={leadFilters.automation}
-                    onChange={(e) => setLeadFilters(prev => ({ ...prev, automation: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
-                  >
-                    <option value="All">All Automations</option>
-                    <option value="Active">Currently in Automation</option>
-                    <option value="Completed">Completed Journeys</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Event Status</label>
-                  <select
-                    value={leadFilters.eventStatus}
-                    onChange={(e) => setLeadFilters(prev => ({ ...prev, eventStatus: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-700 outline-none"
-                  >
-                    <option value="All">All Event Statuses</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Waitlist">Waitlist</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="RSVP">RSVP Confirmed</option>
-                    <option value="Attended">Attended</option>
-                    <option value="No Show">No Show</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                <span>Showing <strong>{filteredLeads.length}</strong> of {attributedContacts.length} contacts</span>
-                <span className="text-[11px]">Click any contact for complete 360° lead dossier</span>
               </div>
             </div>
 
             {/* Leads Table */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-              <div className="overflow-x-auto max-h-[640px]">
-                <table className="w-full text-left text-xs text-slate-700">
-                  <thead className="bg-slate-50 sticky top-0 z-20 text-slate-600 border-b border-slate-200 uppercase font-semibold text-[11px]">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
-                      <th className="py-3 px-3">Contact</th>
-                      <th className="py-3 px-3">Company</th>
-                      <th className="py-3 px-3">Source Attribution</th>
-                      <th className="py-3 px-3 text-center">Stage</th>
-                      <th className="py-3 px-3 text-center">Score</th>
-                      <th className="py-3 px-3 text-center">Emails Rcvd</th>
-                      <th className="py-3 px-3 text-center">Opens</th>
-                      <th className="py-3 px-3 text-center">Clicks</th>
-                      <th className="py-3 px-3 text-center">Automations</th>
-                      <th className="py-3 px-3 text-center">Event Status</th>
-                      <th className="py-3 px-3 text-right">Details</th>
+                      <th className="px-6 py-3">Contact</th>
+                      <th className="px-6 py-3">Company</th>
+                      <th className="px-6 py-3">Lead Type</th>
+                      <th className="px-6 py-3">Pipeline Stage</th>
+                      <th className="px-6 py-3">Engagement</th>
+                      <th className="px-6 py-3">Event Status</th>
+                      <th className="px-6 py-3 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredLeads.map((contact) => (
-                      <tr
-                        key={contact.id}
-                        onClick={() => setSelectedLead(contact)}
-                        className="hover:bg-indigo-50/50 cursor-pointer transition"
-                      >
-                        <td className="py-2.5 px-3">
-                          <div className="font-semibold text-slate-900">{contact.fullName}</div>
-                          <div className="text-[11px] text-slate-500 font-mono">{contact.email}</div>
+                  <tbody className="divide-y divide-slate-200">
+                    {filteredLeads.map(lead => (
+                      <tr key={lead.id} className="hover:bg-slate-50 transition">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-900">{lead.fullName}</div>
+                          <div className="text-xs text-slate-500">{lead.email}</div>
                         </td>
-                        <td className="py-2.5 px-3 font-medium text-slate-800">{contact.company}</td>
-                        <td className="py-2.5 px-3">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-800 border border-slate-200">
-                            {contact.derivedSource}
-                          </span>
+
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-1.5 text-xs text-slate-700 font-medium">
+                            <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                            <span>{lead.company}</span>
+                          </div>
                         </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                            contact.leadStage === 'SQL' ? 'bg-emerald-100 text-emerald-800' :
-                            contact.leadStage === 'MQL' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'
+
+                        <td className="px-6 py-4">
+                          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                            lead.leadType === 'Hot' ? 'bg-red-100 text-red-800' :
+                            lead.leadType === 'Warm' ? 'bg-amber-100 text-amber-800' :
+                            lead.leadType === 'MQL' ? 'bg-indigo-100 text-indigo-800' :
+                            lead.leadType === 'Not Qualified' ? 'bg-slate-200 text-slate-700' :
+                            'bg-blue-100 text-blue-800'
                           }`}>
-                            {contact.leadStage}
+                            {lead.leadType}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-center font-semibold text-slate-800">{contact.leadScore}</td>
-                        
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="font-bold text-slate-900">{contact.emailsReceived || 0}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {contact.broadcastEmails || 0} bcast / {contact.automationEmails || 0} auto
-                          </div>
+
+                        <td className="px-6 py-4">
+                          <select
+                            value={lead.pipelineStage}
+                            onChange={e => handlePipelineChange(lead.id, e.target.value)}
+                            className="text-xs border border-slate-300 rounded px-2 py-1 bg-white focus:ring-1 focus:ring-indigo-500"
+                          >
+                            {PIPELINE_OPTIONS.map(opt => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
                         </td>
 
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="font-medium text-indigo-700">{contact.emailsOpened || 0}</div>
-                          <div className="text-[10px] text-slate-400">{contact.openRate || 0}%</div>
+                        <td className="px-6 py-4">
+                          <div className="text-xs font-semibold text-slate-800">{lead.emailsSent || 1} Sent</div>
+                          <div className="text-xs text-slate-500">{lead.emailsOpened || 0} Opens | {lead.linksClicked || 0} Clicks</div>
                         </td>
 
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="font-medium text-emerald-700">{contact.linksClicked || 0}</div>
-                          <div className="text-[10px] text-slate-400">{contact.clickRate || 0}%</div>
-                        </td>
-
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="font-medium text-slate-800">{contact.automationsEntered || 0} entered</div>
-                          <div className="text-[10px]">
-                            {contact.activeAutomations > 0 ? (
-                              <span className="text-amber-600 font-semibold">{contact.activeAutomations} Active</span>
-                            ) : (
-                              <span className="text-emerald-600 font-medium">{contact.completedAutomations || 0} done</span>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="py-2.5 px-3 text-center">
-                          {contact.approvalStatus ? (
-                            <div>
-                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
-                                contact.approvalStatus === 'Approved' ? 'bg-purple-100 text-purple-700' :
-                                contact.approvalStatus === 'Waitlist' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
-                              }`}>
-                                {contact.approvalStatus}
-                              </span>
-                              {contact.attendanceStatus && (
-                                <div className="text-[10px] text-slate-500 mt-0.5">{contact.attendanceStatus}</div>
-                              )}
-                            </div>
+                        <td className="px-6 py-4">
+                          {lead.approvalStatus ? (
+                            <span className="px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-800 rounded">
+                              {lead.approvalStatus}
+                            </span>
                           ) : (
-                            <span className="text-slate-400 text-[11px]">—</span>
+                            <span className="text-xs text-slate-400">—</span>
                           )}
                         </td>
 
-                        <td className="py-2.5 px-3 text-right text-indigo-600 font-medium hover:underline">
-                          View Dossier →
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={() => setSelectedLead(lead)}
+                            className="inline-flex items-center space-x-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition"
+                          >
+                            <span>View Details</span>
+                            <ArrowUpRight className="h-3 w-3" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -986,362 +502,227 @@ Lead Profile:
                 </table>
               </div>
             </div>
+          </div>
+        )}
 
+        {/* ROLES BREAKDOWN TAB */}
+        {activeTab === 'roles' && (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+              <h3 className="text-base font-bold text-slate-900">Breakdown by Job Role / Persona</h3>
+              <p className="text-xs text-slate-500 mt-1">Lead distribution and engagement readiness across target job titles</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {roleBreakdown.map((item, idx) => (
+                <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h4 className="font-bold text-slate-900 text-base">{item.role}</h4>
+                    <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full">
+                      {item.total} Total Leads
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="bg-red-50 p-2 rounded-lg">
+                      <p className="text-xs font-semibold text-red-600">Hot</p>
+                      <p className="text-lg font-bold text-red-700">{item.hot}</p>
+                    </div>
+                    <div className="bg-indigo-50 p-2 rounded-lg">
+                      <p className="text-xs font-semibold text-indigo-600">MQL</p>
+                      <p className="text-lg font-bold text-indigo-700">{item.mql}</p>
+                    </div>
+                    <div className="bg-amber-50 p-2 rounded-lg">
+                      <p className="text-xs font-semibold text-amber-600">Warm</p>
+                      <p className="text-lg font-bold text-amber-700">{item.warm}</p>
+                    </div>
+                    <div className="bg-blue-50 p-2 rounded-lg">
+                      <p className="text-xs font-semibold text-blue-600">Cold</p>
+                      <p className="text-lg font-bold text-blue-700">{item.cold}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAG RULES & IDENTIFIERS TAB */}
+        {activeTab === 'tag-rules' && (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-2">
+              <h3 className="text-base font-bold text-slate-900">Auto-Identify Lead Types via ActiveCampaign Tags</h3>
+              <p className="text-xs text-slate-500">
+                Configure tag keywords. When an ActiveCampaign contact possesses any of these tags, they are automatically categorized into the corresponding Lead Type.
+              </p>
+            </div>
+
+            {/* Add New Tag Form */}
+            <form onSubmit={handleAddTagRule} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex gap-4 items-end">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Lead Type</label>
+                <select
+                  value={newTagInput.stage}
+                  onChange={e => setNewTagInput({ ...newTagInput, stage: e.target.value })}
+                  className="text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="MQL">MQL</option>
+                  <option value="Hot">Hot</option>
+                  <option value="Warm">Warm</option>
+                  <option value="Cold">Cold</option>
+                  <option value="Not Qualified">Not Qualified</option>
+                </select>
+              </div>
+
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Tag Keyword / Identifier</label>
+                <input
+                  type="text"
+                  placeholder="e.g. approved, webinar-attendee, bad-data..."
+                  value={newTagInput.tag}
+                  onChange={e => setNewTagInput({ ...newTagInput, tag: e.target.value })}
+                  className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg inline-flex items-center space-x-1 transition"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Rule</span>
+              </button>
+            </form>
+
+            {/* Active Tag Rules List */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {Object.entries(tagRules).map(([stage, tags]) => (
+                <div key={stage} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 className="font-bold text-slate-900 text-sm">{stage} Tag Conditions</h4>
+                    <span className="text-xs font-semibold text-slate-400">{tags.length} active rules</span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map(t => (
+                      <span key={t} className="inline-flex items-center space-x-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs px-2.5 py-1 rounded-full">
+                        <Tag className="h-3 w-3 text-slate-400" />
+                        <span>{t}</span>
+                        <button
+                          onClick={() => handleRemoveTagRule(stage, t)}
+                          className="hover:text-red-600 ml-1"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
         {/* CAMPAIGNS TAB */}
-        {activeTab === 'CAMPAIGNS' && (
-          <div className="space-y-4">
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Broadcast Campaigns</h3>
-                <p className="text-xs text-slate-500">Live campaign delivery and engagement metrics from ActiveCampaign.</p>
-              </div>
-              <span className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-lg font-medium">
-                {campaigns.length} Campaigns Retrieved
-              </span>
+        {activeTab === 'campaigns' && (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900">Broadcast Campaigns</h3>
             </div>
-
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-              <table className="w-full text-left text-xs text-slate-700">
-                <thead className="bg-slate-50 uppercase text-slate-600 font-semibold text-[11px] border-b border-slate-200">
-                  <tr>
-                    <th className="py-3 px-4">Campaign Name</th>
-                    <th className="py-3 px-4">Date Sent</th>
-                    <th className="py-3 px-4 text-right">Recipients</th>
-                    <th className="py-3 px-4 text-right">Delivered</th>
-                    <th className="py-3 px-4 text-right">Opens</th>
-                    <th className="py-3 px-4 text-right">Open Rate</th>
-                    <th className="py-3 px-4 text-right">Clicks</th>
-                    <th className="py-3 px-4 text-right">Click Rate</th>
-                    <th className="py-3 px-4 text-right">Unsubscribes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {campaigns.length === 0 ? (
-                    <tr>
-                      <td colSpan="9" className="py-8 text-center text-slate-400 text-xs">
-                        No campaigns found or still syncing from ActiveCampaign...
-                      </td>
-                    </tr>
-                  ) : (
-                    campaigns.map(camp => (
-                      <tr 
-                        key={camp.id} 
-                        onClick={() => setSelectedCampaign(camp)}
-                        className="hover:bg-indigo-50/40 cursor-pointer transition"
-                      >
-                        <td className="py-3.5 px-4 font-semibold text-slate-900 flex items-center space-x-2">
-                          <Send className="h-3.5 w-3.5 text-indigo-500" />
-                          <span>{camp.name}</span>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-500">{camp.dateSent}</td>
-                        <td className="py-3.5 px-4 text-right font-medium">{camp.recipients}</td>
-                        <td className="py-3.5 px-4 text-right text-slate-600">{camp.delivered}</td>
-                        <td className="py-3.5 px-4 text-right font-semibold text-indigo-600">{camp.opens}</td>
-                        <td className="py-3.5 px-4 text-right font-bold text-indigo-600">{camp.openRate}%</td>
-                        <td className="py-3.5 px-4 text-right font-semibold text-emerald-600">{camp.clicks}</td>
-                        <td className="py-3.5 px-4 text-right font-bold text-emerald-600">{camp.clickRate}%</td>
-                        <td className="py-3.5 px-4 text-right text-slate-500">{camp.unsubscribes}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* AUTOMATIONS TAB */}
-        {activeTab === 'AUTOMATIONS' && (
-          <div className="space-y-4">
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">ActiveCampaign Automation Flows</h3>
-                <p className="text-xs text-slate-500">Live workflows, entries, completions, and journey tracking.</p>
-              </div>
-              <span className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-lg font-medium">
-                {automations.length} Automations
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {automations.length === 0 ? (
-                <div className="col-span-2 p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
-                  No automations returned from ActiveCampaign API.
-                </div>
-              ) : (
-                automations.map(auto => (
-                  <div key={auto.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-                    <div className="flex items-start justify-between">
+            <div className="p-6 text-sm text-slate-500">
+              {campaigns.length === 0 ? 'No broadcast campaigns found in ActiveCampaign.' : (
+                <div className="space-y-4">
+                  {campaigns.map(c => (
+                    <div key={c.id} className="p-4 border rounded-lg flex justify-between items-center">
                       <div>
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          auto.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {auto.status}
-                        </span>
-                        <h3 className="font-bold text-slate-900 text-sm mt-1">{auto.name}</h3>
+                        <div className="font-bold text-slate-900">{c.name}</div>
+                        <div className="text-xs text-slate-500">Status: {c.status} | Sent: {c.send_amt || 0}</div>
                       </div>
-                      <Workflow className="h-4 w-4 text-indigo-600" />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
-                      <div className="p-2 bg-slate-50 rounded-lg">
-                        <span className="text-slate-400 text-[10px] block">Entries</span>
-                        <span className="font-bold text-slate-900">{auto.entries}</span>
-                      </div>
-                      <div className="p-2 bg-indigo-50 rounded-lg">
-                        <span className="text-indigo-600 text-[10px] block">Emails Sent</span>
-                        <span className="font-bold text-indigo-700">{auto.emailsSent}</span>
-                      </div>
-                      <div className="p-2 bg-emerald-50 rounded-lg">
-                        <span className="text-emerald-600 text-[10px] block">Unique Opens</span>
-                        <span className="font-bold text-emerald-700">{auto.uniqueOpens}</span>
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-indigo-600">Opens: {c.opens || 0}</div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
         )}
 
-        {/* EVENTS TAB */}
-        {activeTab === 'EVENTS' && (
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
-            <h2 className="text-lg font-bold text-slate-900">Google Event — August 2026</h2>
-            <div className="grid grid-cols-3 gap-4 text-center text-xs">
-              <div className="p-4 bg-slate-50 rounded-xl">
-                <div className="text-slate-500">Approved</div>
-                <div className="text-2xl font-bold text-slate-900 mt-1">{metrics.eventStats.approved}</div>
-              </div>
-              <div className="p-4 bg-amber-50 rounded-xl">
-                <div className="text-amber-700">RSVP Confirmed</div>
-                <div className="text-2xl font-bold text-amber-700 mt-1">{metrics.eventStats.rsvp}</div>
-              </div>
-              <div className="p-4 bg-emerald-50 rounded-xl">
-                <div className="text-emerald-700">Attended</div>
-                <div className="text-2xl font-bold text-emerald-700 mt-1">{metrics.eventStats.attended}</div>
-              </div>
+        {/* AUTOMATIONS TAB */}
+        {activeTab === 'automations' && (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900">Active Automations</h3>
             </div>
-          </div>
-        )}
-
-        {/* ACQUISITION / SPEND TAB */}
-        {activeTab === 'ACQUISITION' && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-              <table className="w-full text-left text-xs text-slate-700">
-                <thead className="bg-slate-50 uppercase text-slate-600 font-semibold text-[11px] border-b border-slate-200">
-                  <tr>
-                    <th className="py-3 px-4">Source</th>
-                    <th className="py-3 px-4 text-right">Marketing Spend</th>
-                    <th className="py-3 px-4 text-right">Leads</th>
-                    <th className="py-3 px-4 text-right">Cost / Lead</th>
-                    <th className="py-3 px-4 text-right">Cost / MQL</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {metrics.sourceRows.map(r => (
-                    <tr key={r.source} className="hover:bg-slate-50">
-                      <td className="py-3.5 px-4 font-semibold text-slate-900">{r.source}</td>
-                      <td className="py-3.5 px-4 text-right font-medium">${r.spend.toFixed(2)}</td>
-                      <td className="py-3.5 px-4 text-right">{r.leadCount}</td>
-                      <td className="py-3.5 px-4 text-right">${r.cpl}</td>
-                      <td className="py-3.5 px-4 text-right font-bold text-indigo-600">${r.costPerMql}</td>
-                    </tr>
+            <div className="p-6 text-sm text-slate-500">
+              {automations.length === 0 ? 'No automations found in ActiveCampaign.' : (
+                <div className="space-y-4">
+                  {automations.map(a => (
+                    <div key={a.id} className="p-4 border rounded-lg flex justify-between items-center">
+                      <div>
+                        <div className="font-bold text-slate-900">{a.name}</div>
+                        <div className="text-xs text-slate-500">Status: {a.status === '1' ? 'Active' : 'Inactive'}</div>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
           </div>
         )}
 
       </main>
 
-      {/* LEAD PROFILE MODAL */}
+      {/* VIEW DETAILS MODAL (Displays only non-blank fields) */}
       {selectedLead && (
-        <div className="bg-slate-900/50 backdrop-blur-xs fixed inset-0 z-50 flex items-center justify-end">
-          <div className="bg-white w-full max-w-xl h-full shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
-            <div className="p-6 border-b border-slate-200 bg-slate-50 flex items-start justify-between">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full max-h-[85vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 sticky top-0">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">{selectedLead.fullName}</h2>
-                <p className="text-xs font-mono text-slate-500">{selectedLead.email}</p>
-                <div className="text-xs text-slate-600 mt-1">{selectedLead.company}</div>
+                <h3 className="font-bold text-slate-900 text-base">{selectedLead.fullName}</h3>
+                <p className="text-xs text-slate-500">{selectedLead.email}</p>
               </div>
-              <button onClick={() => setSelectedLead(null)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button
+                onClick={() => setSelectedLead(null)}
+                className="p-1 hover:bg-slate-200 rounded-lg text-slate-500"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
-              <button
-                onClick={() => handleGenerateLeadCopilot(selectedLead)}
-                disabled={aiLeadAnalysisLoading}
-                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-xs transition flex items-center justify-center space-x-2"
-              >
-                <Sparkles className="h-4 w-4 text-amber-300" />
-                <span>{aiLeadAnalysisLoading ? 'Analyzing...' : 'Generate AI Dossier & Outreach Draft'}</span>
-              </button>
 
-              {aiLeadAnalysis && (
-                <div className="p-4 bg-slate-50 rounded-xl border border-indigo-100 whitespace-pre-line text-slate-700 leading-relaxed">
-                  {aiLeadAnalysis}
-                </div>
-              )}
-
-              <div>
-                <h4 className="font-bold text-slate-900 mb-2">ActiveCampaign Tags</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedLead.rawTags.map((tag, idx) => (
-                    <span key={idx} className="bg-slate-100 px-2 py-1 rounded font-mono text-slate-700 border border-slate-200">
-                      #{tag}
-                    </span>
+            <div className="p-6 space-y-4 text-xs">
+              <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Contact Fields (Populated)</h4>
+              
+              <div className="grid grid-cols-1 gap-3">
+                {Object.entries(selectedLead)
+                  .filter(([key, val]) => {
+                    if (val === null || val === undefined || val === '' || val === '—') return false;
+                    if (Array.isArray(val) && val.length === 0) return false;
+                    return true;
+                  })
+                  .map(([key, val]) => (
+                    <div key={key} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="font-semibold text-slate-500 capitalize">{key.replace(/([A-Z])/g, ' $1')}:</span>
+                      <span className="ml-2 font-medium text-slate-900 break-words">
+                        {Array.isArray(val) ? val.join(', ') : String(val)}
+                      </span>
+                    </div>
                   ))}
-                </div>
               </div>
             </div>
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-              <button onClick={() => setSelectedLead(null)} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-medium">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* CONNECTION & SYNC MANAGER MODAL */}
-      {isConnectModalOpen && (
-        <div className="bg-slate-900/50 backdrop-blur-xs fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden flex flex-col shadow-2xl border border-slate-200">
-            <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">ActiveCampaign Connection</h3>
-              <button onClick={() => setIsConnectModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Backend Proxy URL</label>
-                <input
-                  type="text"
-                  value={apiConfig.backendUrl}
-                  onChange={(e) => setApiConfig(prev => ({ ...prev, backendUrl: e.target.value }))}
-                  className="w-full p-2.5 font-mono bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Live Status</span>
-                  <span className={`font-semibold ${isLiveSource ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {isLiveSource ? '200 OK (Live Connected)' : 'Standby / Error'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Active Contacts</span>
-                  <span className="font-bold text-slate-800">{contacts.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Last Sync</span>
-                  <span className="text-slate-800">{apiConfig.lastSync}</span>
-                </div>
-              </div>
-
-              {syncError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-[11px]">
-                  <strong>Sync Warning:</strong> {syncError}. (Free tier instances on Render spin down after inactivity; clicking "Sync Now" will wake the server up).
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between">
+            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 text-right">
               <button
-                onClick={() => fetchLiveContacts(apiConfig.backendUrl)}
-                disabled={isLoadingLive}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-semibold rounded-lg transition"
+                onClick={() => setSelectedLead(null)}
+                className="px-4 py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-900"
               >
-                {isLoadingLive ? 'Syncing...' : 'Sync Now'}
-              </button>
-              <button
-                onClick={() => setIsConnectModalOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg transition"
-              >
-                Done
+                Close Details
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* STRATEGIST AI MODAL */}
-      {isAiModalOpen && (
-        <div className="bg-slate-900/50 backdrop-blur-xs fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-slate-200">
-            <div className="p-5 border-b border-slate-200 bg-slate-900 text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="h-5 w-5 text-amber-300" />
-                <h3 className="text-base font-bold">Fenyx Marketing Strategist AI</h3>
-              </div>
-              <button onClick={() => setIsAiModalOpen(false)} className="text-slate-400 hover:text-white">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-5 flex-1 overflow-y-auto space-y-4 text-xs">
-              {aiAnalysisLoading ? (
-                <div className="py-12 text-center text-slate-500">
-                  <RefreshCw className="h-6 w-6 animate-spin mx-auto text-indigo-600 mb-2" />
-                  Generating executive revenue briefing...
-                </div>
-              ) : (
-                <div className="whitespace-pre-line text-slate-800 leading-relaxed font-sans bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  {aiAnalysisResult || 'Select a prompt below to begin.'}
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-              <button onClick={() => setIsAiModalOpen(false)} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-semibold">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SPEND MANAGEMENT MODAL */}
-      {isSpendModalOpen && (
-        <div className="bg-slate-900/50 backdrop-blur-xs fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden flex flex-col shadow-2xl border border-slate-200">
-            <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">Manage Marketing Spend</h3>
-              <button onClick={() => setIsSpendModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-3 text-xs flex-1 overflow-y-auto">
-              {metrics.sourceRows.map(r => (
-                <div key={r.source} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="font-semibold text-slate-800">{r.source}</span>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-slate-500">$</span>
-                    <input
-                      type="number"
-                      value={sourceSpend[r.source] !== undefined ? sourceSpend[r.source] : ''}
-                      onChange={(e) => handleUpdateSpend(r.source, e.target.value)}
-                      className="w-24 p-1.5 bg-white border border-slate-300 rounded text-right font-medium outline-none"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-              <button onClick={() => setIsSpendModalOpen(false)} className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg">
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
