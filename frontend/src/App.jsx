@@ -124,7 +124,7 @@ export default function App() {
     } catch (err) {
       console.error('Fetch error:', err);
       setSyncStatus('Error');
-    } finally {
+    } font-sans finally {
       setLoading(false);
     }
   };
@@ -357,23 +357,29 @@ export default function App() {
 
     processedLeads.forEach(lead => {
       const tagDates = lead.tagDates || {};
-      Object.entries(tagDates).forEach(([tag, dateStr]) => {
-        if (tag.includes('open') && dateStr) {
-          const d = new Date(dateStr);
-          if (!isNaN(d.getTime())) {
-            totalRecordedOpens++;
-            
-            // Day of week
-            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-            if (dayCounts[dayName] !== undefined) dayCounts[dayName]++;
+      const datesToAnalyze = [];
 
-            // Time of day
-            const hr = d.getHours();
-            if (hr >= 6 && hr < 12) timeSlots['Morning (6AM - 12PM)']++;
-            else if (hr >= 12 && hr < 17) timeSlots['Afternoon (12PM - 5PM)']++;
-            else if (hr >= 17 && hr < 21) timeSlots['Evening (5PM - 9PM)']++;
-            else timeSlots['Night (9PM - 6AM)']++;
-          }
+      Object.values(tagDates).forEach(dateStr => {
+        if (dateStr) datesToAnalyze.push(dateStr);
+      });
+
+      if (!datesToAnalyze.length && lead.dateAdded && lead.dateAdded !== '—') {
+        datesToAnalyze.push(lead.dateAdded);
+      }
+
+      datesToAnalyze.forEach(dateStr => {
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          totalRecordedOpens++;
+          
+          const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+          if (dayCounts[dayName] !== undefined) dayCounts[dayName]++;
+
+          const hr = d.getHours();
+          if (hr >= 6 && hr < 12) timeSlots['Morning (6AM - 12PM)']++;
+          else if (hr >= 12 && hr < 17) timeSlots['Afternoon (12PM - 5PM)']++;
+          else if (hr >= 17 && hr < 21) timeSlots['Evening (5PM - 9PM)']++;
+          else timeSlots['Night (9PM - 6AM)']++;
         }
       });
     });
@@ -381,7 +387,7 @@ export default function App() {
     return { dayCounts, timeSlots, totalRecordedOpens };
   }, [processedLeads]);
 
-  // TOP PERFORMING SUBJECT LINES ENGINE (USES ACTUAL SUBJECT LINE FIRST)
+  // TOP PERFORMING SUBJECT LINES ENGINE
   const topSubjectLines = useMemo(() => {
     if (!campaigns || !campaigns.length) return [];
 
@@ -390,23 +396,33 @@ export default function App() {
         const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 0;
         const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
         const openRate = sendAmt > 0 ? (uniqueOpens / sendAmt) * 100 : 0;
-        const actualSubject = c.subject || c.subject_line || 'No Subject Line Defined';
+        
+        let headline = c.subject || c.subject_line || c.campaignMessage?.subject || c.message?.subject;
+
+        if (!headline || headline === c.name) {
+          if (c.name && c.name.includes(':')) {
+            const parts = c.name.split(':');
+            headline = parts.slice(1).join(':').trim();
+          } else {
+            headline = c.name;
+          }
+        }
 
         return {
           id: c.id,
-          subject: actualSubject,
+          subject: headline || c.name,
           campaignName: c.name,
           sendAmt,
           uniqueOpens,
           openRate
         };
       })
-      .filter(item => item.sendAmt > 0)
+      .filter(item => item.sendAmt > 0 && item.subject)
       .sort((a, b) => b.openRate - a.openRate)
       .slice(0, 5);
   }, [campaigns]);
 
-  // REAL-TIME ACTIVITY FEED: STRICTLY OPENS AND CLICKS ONLY
+  // REAL-TIME ACTIVITY FEED: MAX 4 LATEST ITEMS
   const liveActivityFeed = useMemo(() => {
     if (!processedLeads.length) return [];
     
@@ -461,7 +477,7 @@ export default function App() {
 
     return actions
       .sort((a, b) => b.rawDate - a.rawDate)
-      .slice(0, 8);
+      .slice(0, 4); // LIMITED TO MAXIMUM 4 ITEMS
   }, [processedLeads]);
 
   const handleSendMessage = (textToSend) => {
@@ -884,14 +900,14 @@ export default function App() {
                 </div>
               </div>
 
-              {/* LIVE ENGAGEMENT STREAM */}
+              {/* LIVE ENGAGEMENT STREAM (MAX 4 LATEST ITEMS) */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center space-x-2">
                     <Activity className="h-4 w-4 text-emerald-500 animate-pulse" />
                     <h3 className="font-bold text-slate-900 text-sm">Live Engagement Stream</h3>
                   </div>
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Opens & Clicks</span>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Latest 4 Actions</span>
                 </div>
 
                 <div className="space-y-3">
@@ -906,9 +922,9 @@ export default function App() {
                         </div>
                         <p className="text-slate-600 text-[11px] flex items-center space-x-1">
                           {act.type === 'click' ? (
-                            <MousePointer className="h-3 w-3 text-blue-500 inline" />
+                            <MousePointer className="h-3 w-3 text-blue-500 inline flex-shrink-0" />
                           ) : (
-                            <Eye className="h-3 w-3 text-indigo-500 inline" />
+                            <Eye className="h-3 w-3 text-indigo-500 inline flex-shrink-0" />
                           )}
                           <span>{act.action}</span>
                         </p>
@@ -994,7 +1010,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* TOP PERFORMING EMAIL SUBJECT LINES SECTION (MOVED TO VERY BOTTOM) */}
+            {/* TOP PERFORMING EMAIL SUBJECT LINES SECTION (PLACED AT THE VERY BOTTOM OF OVERVIEW) */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <div>
