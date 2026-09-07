@@ -119,18 +119,43 @@ export default function App() {
     return Object.entries(map).map(([source, data]) => ({ source, ...data }));
   }, [processedLeads]);
 
+  // Updated Roles Breakdown to categorize exactly into the 5 requested buckets
   const roleBreakdown = useMemo(() => {
-    const map = {};
+    // Pre-seed the 5 exact categories so the table always stays consistent
+    const map = {
+      'C-Level': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
+      'Director': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
+      'Founder/Owner': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
+      'Manager': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
+      'Others': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 }
+    };
+
     processedLeads.forEach(l => {
-      const roleName = l.role && l.role !== 'Prospect' && l.role !== '—' ? l.role : 'General / Uncategorized';
-      if (!map[roleName]) map[roleName] = { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 };
-      map[roleName].total++;
-      if (l.leadType === 'Hot') map[roleName].hot++;
-      if (l.leadType === 'MQL') map[roleName].mql++;
-      if (l.leadType === 'Warm') map[roleName].warm++;
-      if (l.leadType === 'Cold') map[roleName].cold++;
-      if (l.leadType === 'Not Qualified') map[roleName].notQual++;
+      let cat = 'Others';
+      
+      if (l.role && l.role !== 'Prospect' && l.role !== '—') {
+        const r = String(l.role).toLowerCase();
+        
+        // Match logic based on requested keywords (regex catches ceo, cto, cfo, cmo, coo, ciso)
+        if (r.includes('founder') || r.includes('owner')) {
+          cat = 'Founder/Owner';
+        } else if (r.includes('chief') || r.includes('c-level') || /\bc[a-z]{1,2}o\b/.test(r)) {
+          cat = 'C-Level';
+        } else if (r.includes('director')) {
+          cat = 'Director';
+        } else if (r.includes('manager')) {
+          cat = 'Manager';
+        }
+      }
+
+      map[cat].total++;
+      if (l.leadType === 'Hot') map[cat].hot++;
+      if (l.leadType === 'MQL') map[cat].mql++;
+      if (l.leadType === 'Warm') map[cat].warm++;
+      if (l.leadType === 'Cold') map[cat].cold++;
+      if (l.leadType === 'Not Qualified') map[cat].notQual++;
     });
+
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
   }, [processedLeads]);
 
@@ -335,16 +360,17 @@ export default function App() {
               </div>
             </div>
 
+            {/* Roles Breakdown Table (%ROLE%) */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Breakdown by Roles & Job Titles (%ROLE%)</h3>
-                <p className="text-xs text-slate-500">Persona distribution and lead readiness per job function</p>
+                <p className="text-xs text-slate-500">Auto-categorized into C-Level, Director, Manager, Founder, and Others</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-slate-600">
                   <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
-                      <th className="px-6 py-3">Role / Persona (%ROLE%)</th>
+                      <th className="px-6 py-3">Role / Persona Category</th>
                       <th className="px-6 py-3">Total Leads</th>
                       <th className="px-6 py-3">Hot</th>
                       <th className="px-6 py-3">Warm</th>
