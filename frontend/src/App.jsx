@@ -107,21 +107,38 @@ export default function App() {
     return counts;
   }, [processedLeads]);
 
+  // Updated Lead Source Breakdown using specific Tag matching logic
   const sourceBreakdown = useMemo(() => {
-    const map = {};
+    // Pre-seed the 4 required buckets
+    const map = {
+      'Google event Registrants': { count: 0, hot: 0, mqls: 0 },
+      'Google Partner Referral': { count: 0, hot: 0, mqls: 0 },
+      'Website Growth Audit Form': { count: 0, hot: 0, mqls: 0 },
+      'Internal leads': { count: 0, hot: 0, mqls: 0 }
+    };
+
     processedLeads.forEach(l => {
-      const src = l.leadSource && l.leadSource !== '—' ? l.leadSource : 'ActiveCampaign Organic';
-      if (!map[src]) map[src] = { count: 0, mqls: 0, hot: 0 };
-      map[src].count++;
-      if (l.leadType === 'MQL') map[src].mqls++;
-      if (l.leadType === 'Hot') map[src].hot++;
+      const tags = (l.rawTags || []).map(t => String(t).toLowerCase());
+      let sourceCat = 'Internal leads'; // Default fallback
+
+      if (tags.some(t => t.includes('reg-google-event-august-2026'))) {
+        sourceCat = 'Google event Registrants';
+      } else if (tags.some(t => t.includes('google-email-list'))) {
+        sourceCat = 'Google Partner Referral';
+      } else if (tags.some(t => t.includes('growth review - coming soon form'))) {
+        sourceCat = 'Website Growth Audit Form';
+      }
+
+      map[sourceCat].count++;
+      if (l.leadType === 'Hot') map[sourceCat].hot++;
+      if (l.leadType === 'MQL') map[sourceCat].mqls++;
     });
+
     return Object.entries(map).map(([source, data]) => ({ source, ...data }));
   }, [processedLeads]);
 
-  // Updated Roles Breakdown to categorize exactly into the 5 requested buckets
+  // Roles Breakdown categorized exactly into the 5 requested buckets
   const roleBreakdown = useMemo(() => {
-    // Pre-seed the 5 exact categories so the table always stays consistent
     const map = {
       'C-Level': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
       'Director': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
@@ -136,7 +153,6 @@ export default function App() {
       if (l.role && l.role !== 'Prospect' && l.role !== '—') {
         const r = String(l.role).toLowerCase();
         
-        // Match logic based on requested keywords (regex catches ceo, cto, cfo, cmo, coo, ciso)
         if (r.includes('founder') || r.includes('owner')) {
           cat = 'Founder/Owner';
         } else if (r.includes('chief') || r.includes('c-level') || /\bc[a-z]{1,2}o\b/.test(r)) {
@@ -334,20 +350,20 @@ export default function App() {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Lead Source Performance</h3>
-                <p className="text-xs text-slate-500">Volume and lead quality segmented by %LEAD_SOURCE%</p>
+                <p className="text-xs text-slate-500">Volume and lead quality segmented by specific ActiveCampaign tags</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-slate-600">
                   <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
-                      <th className="px-6 py-3">Lead Source (%LEAD_SOURCE%)</th>
+                      <th className="px-6 py-3">Lead Source Category</th>
                       <th className="px-6 py-3">Total Leads</th>
                       <th className="px-6 py-3">Hot Leads</th>
                       <th className="px-6 py-3">MQLs</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {sourceBreakdown.slice(0, 10).map((item, idx) => (
+                    {sourceBreakdown.map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="px-6 py-4 font-medium text-slate-900">{item.source}</td>
                         <td className="px-6 py-4 font-semibold">{item.count}</td>
@@ -360,10 +376,9 @@ export default function App() {
               </div>
             </div>
 
-            {/* Roles Breakdown Table (%ROLE%) */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
-                <h3 className="text-base font-bold text-slate-900">Breakdown by Roles & Job Titles (%ROLE%)</h3>
+                <h3 className="text-base font-bold text-slate-900">Breakdown by Roles</h3>
                 <p className="text-xs text-slate-500">Auto-categorized into C-Level, Director, Manager, Founder, and Others</p>
               </div>
               <div className="overflow-x-auto">
