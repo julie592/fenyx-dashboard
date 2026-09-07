@@ -34,8 +34,8 @@ export default function App() {
   const [newTagInput, setNewTagInput] = useState({ stage: 'MQL', tag: '' });
 
   const fetchData = async () => {
-    setLoading(true);
-    setSyncStatus('Syncing...');
+    setSyncStatus('Connected');
+setLastSyncTime(new Date().toLocaleTimeString());
     try {
       const [contactsRes, campaignsRes, automationsRes] = await Promise.allSettled([
         fetch(`${API_PROXY}/api/contacts`),
