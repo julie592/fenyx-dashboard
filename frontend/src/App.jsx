@@ -344,36 +344,65 @@ export default function App() {
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
   }, [processedLeads]);
 
+  // REAL-TIME ACTIVITY FEED: STRICTLY OPENS AND CLICKS ONLY
   const liveActivityFeed = useMemo(() => {
     if (!processedLeads.length) return [];
     
     const actions = [];
-    processedLeads.slice(0, 15).forEach((lead, i) => {
-      if (lead.rawTags?.length) {
+
+    processedLeads.forEach((lead) => {
+      const tagDates = lead.tagDates || {};
+      const cleanTags = (lead.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+      // Check for link click events
+      const clickTagMatch = cleanTags.find(t => t.includes('click') || t.includes('growth-audit'));
+      if (lead.linksClicked > 0 || clickTagMatch) {
+        let timestamp = null;
+        let rawDate = new Date(0);
+        if (clickTagMatch && tagDates[clickTagMatch]) {
+          rawDate = new Date(tagDates[clickTagMatch]);
+          timestamp = rawDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
         actions.push({
-          id: `act-${i}-1`,
-          time: `${(i + 1) * 4}m ago`,
+          id: `act-click-${lead.id}`,
+          rawDate,
+          time: timestamp || 'Recent Click',
           contact: lead.fullName,
           email: lead.email,
-          action: `Tag condition evaluated`,
-          detail: `Assigned to ${lead.leadType}`,
-          type: 'tag'
+          action: 'Clicked campaign link',
+          detail: `${lead.linksClicked || 1} URL click event(s) recorded`,
+          type: 'click'
         });
       }
-      if (lead.emailsOpened > 0) {
+
+      // Check for email open events
+      const openTagMatch = cleanTags.find(t => t.includes('open'));
+      if (lead.emailsOpened > 0 || openTagMatch) {
+        let timestamp = null;
+        let rawDate = new Date(0);
+        if (openTagMatch && tagDates[openTagMatch]) {
+          rawDate = new Date(tagDates[openTagMatch]);
+          timestamp = rawDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
         actions.push({
-          id: `act-${i}-2`,
-          time: `${(i + 2) * 6}m ago`,
+          id: `act-open-${lead.id}`,
+          rawDate,
+          time: timestamp || 'Recent Open',
           contact: lead.fullName,
           email: lead.email,
           action: `Opened active campaign email`,
-          detail: `${lead.emailsOpened} open events recorded`,
+          detail: `${lead.emailsOpened || 1} open event(s) recorded`,
           type: 'open'
         });
       }
     });
 
-    return actions.slice(0, 7);
+    // Sort by most recent event date first and limit to top 8 items
+    return actions
+      .sort((a, b) => b.rawDate - a.rawDate)
+      .slice(0, 8);
   }, [processedLeads]);
 
   const handleSendMessage = (textToSend) => {
@@ -661,7 +690,7 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {/* OVERVIEW TAB WITH UPDATED 8-CARD METRIC GRID */}
+        {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -796,18 +825,19 @@ export default function App() {
                 </div>
               </div>
 
+              {/* STRICT OPENS & CLICKS REAL-TIME ACTIVITY FEED */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center space-x-2">
                     <Activity className="h-4 w-4 text-emerald-500 animate-pulse" />
-                    <h3 className="font-bold text-slate-900 text-sm">Live Activity Feed</h3>
+                    <h3 className="font-bold text-slate-900 text-sm">Live Engagement Stream</h3>
                   </div>
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Real-time Stream</span>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Opens & Clicks</span>
                 </div>
 
                 <div className="space-y-3">
                   {liveActivityFeed.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">No recent actions logged.</p>
+                    <p className="text-xs text-slate-400 italic">No recent email opens or link clicks logged.</p>
                   ) : (
                     liveActivityFeed.map(act => (
                       <div key={act.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs space-y-1">
@@ -815,7 +845,14 @@ export default function App() {
                           <span className="font-bold text-slate-800 truncate max-w-[150px]">{act.contact}</span>
                           <span className="text-[10px] text-slate-400">{act.time}</span>
                         </div>
-                        <p className="text-slate-600 text-[11px]">{act.action}</p>
+                        <p className="text-slate-600 text-[11px] flex items-center space-x-1">
+                          {act.type === 'click' ? (
+                            <MousePointer className="h-3 w-3 text-blue-500 inline" />
+                          ) : (
+                            <Eye className="h-3 w-3 text-indigo-500 inline" />
+                          )}
+                          <span>{act.action}</span>
+                        </p>
                         <p className="text-[10px] text-indigo-600 font-medium">{act.detail}</p>
                       </div>
                     ))
@@ -1235,7 +1272,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ORGANIZED CAMPAIGNS TAB: AUTOMATION-FIRST GROUPING */}
+        {/* ORGANIZED CAMPAIGNS TAB */}
         {activeTab === 'campaigns' && (
           <div className="space-y-6">
             
