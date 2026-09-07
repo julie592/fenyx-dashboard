@@ -7,6 +7,14 @@ import {
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
 
+const DEFAULT_TAG_RULES = {
+  MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
+  Hot: ['hot', 'demo-requested', 'high-intent', 'fpf-vip'],
+  Warm: ['warm', 'engaged', 'newsletter-click'],
+  Cold: ['cold', 'unengaged', 'prospect'],
+  'Not Qualified': ['rejected', 'unqualified', 'archived', 'no-fit', 'spam']
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
@@ -21,24 +29,19 @@ export default function App() {
   const [filterLeadType, setFilterLeadType] = useState('All');
   const [filterPipeline, setFilterPipeline] = useState('All');
 
-  const [tagRules, setTagRules] = useState({
-    MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
-    Hot: ['hot', 'demo-requested', 'high-intent', 'fpf-vip'],
-    Warm: ['warm', 'engaged', 'newsletter-click'],
-    Cold: ['cold', 'unengaged', 'prospect'],
-    'Not Qualified': ['rejected', 'unqualified', 'archived', 'no-fit', 'spam']
-  });
-
+  // Tag rules now initialize from default, overwritten by backend fetch
+  const [tagRules, setTagRules] = useState(DEFAULT_TAG_RULES);
   const [newTagInput, setNewTagInput] = useState({ stage: 'MQL', tag: '' });
 
   const fetchData = async () => {
     setLoading(true);
     setSyncStatus('Syncing...');
     try {
-      const [contactsRes, campaignsRes, automationsRes] = await Promise.allSettled([
+      const [contactsRes, campaignsRes, automationsRes, tagRulesRes] = await Promise.allSettled([
         fetch(`${API_PROXY}/api/contacts`),
         fetch(`${API_PROXY}/api/campaigns`),
-        fetch(`${API_PROXY}/api/automations`)
+        fetch(`${API_PROXY}/api/automations`),
+        fetch(`${API_PROXY}/api/tag-rules`)
       ]);
 
       if (contactsRes.status === 'fulfilled' && contactsRes.value.ok) {
@@ -54,6 +57,11 @@ export default function App() {
       if (automationsRes.status === 'fulfilled' && automationsRes.value.ok) {
         const data = await automationsRes.value.json();
         setAutomations(data.automations || []);
+      }
+
+      if (tagRulesRes.status === 'fulfilled' && tagRulesRes.value.ok) {
+        const data = await tagRulesRes.value.json();
+        setTagRules(data);
       }
 
       const failedRequests = [contactsRes, campaignsRes, automationsRes].filter(
@@ -73,6 +81,18 @@ export default function App() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const saveRulesToBackend = async (updatedRules) => {
+    try {
+      await fetch(`${API_PROXY}/api/tag-rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedRules)
+      });
+    } catch (err) {
+      console.error('Failed to save tag rules globally:', err);
+    }
+  };
 
   const processedLeads = useMemo(() => {
     return rawContacts.map(c => {
@@ -207,18 +227,24 @@ export default function App() {
     const stage = newTagInput.stage;
     const tag = newTagInput.tag.trim().toLowerCase();
 
-    setTagRules(prev => ({
-      ...prev,
-      [stage]: [...(prev[stage] || []), tag]
-    }));
+    const updatedRules = {
+      ...tagRules,
+      [stage]: [...(tagRules[stage] || []), tag]
+    };
+    
+    setTagRules(updatedRules);
+    saveRulesToBackend(updatedRules);
     setNewTagInput({ ...newTagInput, tag: '' });
   };
 
   const handleRemoveTagRule = (stage, tagToRemove) => {
-    setTagRules(prev => ({
-      ...prev,
-      [stage]: prev[stage].filter(t => t !== tagToRemove)
-    }));
+    const updatedRules = {
+      ...tagRules,
+      [stage]: tagRules[stage].filter(t => t !== tagToRemove)
+    };
+
+    setTagRules(updatedRules);
+    saveRulesToBackend(updatedRules);
   };
 
   return (
@@ -379,7 +405,7 @@ export default function App() {
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
-                <h3 className="text-base font-bold text-slate-900">Breakdown by Roles & Job Titles (%ROLE%)</h3>
+                <h3 className="text-base font-bold text-slate-900">Breakdown by Roles & Job Titles</h3>
                 <p className="text-xs text-slate-500">Auto-categorized into C-Level, Director, Manager, Founder, and Others</p>
               </div>
               <div className="overflow-x-auto">
@@ -553,7 +579,7 @@ export default function App() {
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-2">
               <h3 className="text-base font-bold text-slate-900">Auto-Identify Lead Types via ActiveCampaign Tags</h3>
               <p className="text-xs text-slate-500">
-                Configure tag keywords. When an ActiveCampaign contact possesses any of these tags, they are automatically categorized into the corresponding Lead Type.
+                Configure tag keywords globally. Any updates you make here will be saved to the backend and applied for your entire team.
               </p>
             </div>
 
