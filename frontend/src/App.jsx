@@ -3,7 +3,7 @@ import {
   Users, RefreshCw, Layers, Mail, 
   Search, Tag, BarChart2,
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
-  DollarSign, Sparkles, Activity, TrendingUp, CheckCircle2, AlertCircle, Trash2
+  DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
@@ -36,6 +36,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterLeadType, setFilterLeadType] = useState('All');
   const [filterPipeline, setFilterPipeline] = useState('All');
+
+  // Campaign Tab Date Filter States
+  const [campaignDatePreset, setCampaignDatePreset] = useState('All');
+  const [campaignStartDate, setCampaignStartDate] = useState('');
+  const [campaignEndDate, setCampaignEndDate] = useState('');
 
   const [tagRules, setTagRules] = useState(DEFAULT_TAG_RULES);
   const [spendSettings, setSpendSettings] = useState(DEFAULT_SPEND);
@@ -153,7 +158,6 @@ export default function App() {
     return counts;
   }, [processedLeads]);
 
-  // Lead Source Breakdown with Warm, Cold, Hot, MQL, Spend, Cost/MQL
   const sourceBreakdown = useMemo(() => {
     const map = {
       'Google event Registrants': { count: 0, hot: 0, warm: 0, mqls: 0, cold: 0 },
@@ -190,7 +194,6 @@ export default function App() {
     });
   }, [processedLeads, spendSettings]);
 
-  // Overall Financial & Scorecard Metrics
   const totalContacts = processedLeads.length;
   const totalAdSpend = useMemo(() => {
     return Object.values(spendSettings).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
@@ -199,7 +202,6 @@ export default function App() {
   const totalMQLs = leadTypeCounts.MQL || 0;
   const overallCostPerMQL = totalMQLs > 0 ? (totalAdSpend / totalMQLs) : 0;
 
-  // Roles Breakdown
   const roleBreakdown = useMemo(() => {
     const map = {
       'C-Level': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
@@ -211,10 +213,8 @@ export default function App() {
 
     processedLeads.forEach(l => {
       let cat = 'Others';
-      
       if (l.role && l.role !== 'Prospect' && l.role !== '—') {
         const r = String(l.role).toLowerCase();
-        
         if (r.includes('founder') || r.includes('owner')) {
           cat = 'Founder/Owner';
         } else if (r.includes('chief') || r.includes('c-level') || /\bc[a-z]{1,2}o\b/.test(r)) {
@@ -237,7 +237,6 @@ export default function App() {
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
   }, [processedLeads]);
 
-  // Live Feed Simulation of Contact Actions
   const liveActivityFeed = useMemo(() => {
     if (!processedLeads.length) return [];
     
@@ -270,7 +269,6 @@ export default function App() {
     return actions.slice(0, 7);
   }, [processedLeads]);
 
-  // Gemini AI Insights Generator
   const geminiInsights = useMemo(() => {
     const topSource = [...sourceBreakdown].sort((a, b) => b.mqls - a.mqls)[0];
     const topRole = [...roleBreakdown].sort((a, b) => b.total - a.total)[0];
@@ -282,6 +280,52 @@ export default function App() {
       `Pipeline Readiness: ${mqlRatio}% of your active database is currently classified as MQL. Accelerate lead velocity by targeting the ${leadTypeCounts.Warm} Warm leads with direct outreach.`
     ];
   }, [sourceBreakdown, roleBreakdown, totalContacts, totalMQLs, leadTypeCounts]);
+
+  // Campaign Date Range Filtering
+  const filteredCampaigns = useMemo(() => {
+    return campaigns.filter(c => {
+      const sendDateStr = c.sdate || c.cdate || c.send_date;
+      if (!sendDateStr) return true;
+      const cDate = new Date(sendDateStr);
+
+      if (campaignDatePreset === '30d') {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        return cDate >= thirtyDaysAgo;
+      }
+
+      if (campaignDatePreset === '90d') {
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        return cDate >= ninetyDaysAgo;
+      }
+
+      if (campaignDatePreset === 'custom') {
+        if (campaignStartDate && cDate < new Date(campaignStartDate)) return false;
+        if (campaignEndDate && cDate > new Date(campaignEndDate + 'T23:59:59')) return false;
+      }
+
+      return true;
+    });
+  }, [campaigns, campaignDatePreset, campaignStartDate, campaignEndDate]);
+
+  // Campaign Email Scorecard Metrics Calculation
+  const campaignScorecard = useMemo(() => {
+    let sent = 0;
+    let opens = 0;
+    let clicks = 0;
+
+    filteredCampaigns.forEach(c => {
+      sent += Number(c.send_amt) || 0;
+      opens += Number(c.opens) || Number(c.uniqueopens) || 0;
+      clicks += Number(c.linkclicks) || Number(c.clicks) || Number(c.subscriberclicks) || 0;
+    });
+
+    const openRate = sent > 0 ? ((opens / sent) * 100).toFixed(1) : '0.0';
+    const clickRate = sent > 0 ? ((clicks / sent) * 100).toFixed(1) : '0.0';
+
+    return { sent, opens, clicks, openRate, clickRate };
+  }, [filteredCampaigns]);
 
   const uniquePipelineStages = useMemo(() => {
     const set = new Set();
@@ -379,7 +423,7 @@ export default function App() {
             { id: 'leads', label: `All Leads (${processedLeads.length})`, icon: Users },
             { id: 'spend', label: 'Marketing Spend', icon: DollarSign },
             { id: 'tag-rules', label: 'Tag Rules & Identifiers', icon: Tag },
-            { id: 'campaigns', label: `Campaigns (${campaigns.length})`, icon: Mail },
+            { id: 'campaigns', label: `Campaigns (${filteredCampaigns.length})`, icon: Mail },
             { id: 'automations', label: `Automations (${automations.length})`, icon: Layers }
           ].map(tab => {
             const Icon = tab.icon;
@@ -408,7 +452,6 @@ export default function App() {
         {activeTab === 'overview' && (
           <div className="space-y-8">
             
-            {/* SCORECARD METRICS GRID */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-4">
               <div className="p-4 rounded-xl border text-slate-900 bg-white border-slate-200 shadow-sm col-span-2">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Contacts</p>
@@ -435,7 +478,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* GEMINI AI CONTACT INSIGHTS MODULE */}
             <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-slate-800 text-white rounded-xl p-6 shadow-md border border-slate-700 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -461,7 +503,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* LEAD SOURCE PERFORMANCE TABLE */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                 <div>
@@ -510,10 +551,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* ROLES BREAKDOWN & LIVE FEED DUAL GRID */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              
-              {/* Roles Table (2 cols) */}
               <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200">
                   <h3 className="text-base font-bold text-slate-900">Breakdown by Roles & Job Titles</h3>
@@ -547,7 +585,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Live Activity Feed Widget (1 col) */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center space-x-2">
@@ -574,7 +611,6 @@ export default function App() {
                   )}
                 </div>
               </div>
-
             </div>
 
           </div>
@@ -821,35 +857,113 @@ export default function App() {
           </div>
         )}
 
-        {/* CAMPAIGNS TAB (ENHANCED BENCHMARKS) */}
+        {/* CAMPAIGNS TAB (WITH SCORECARD & DATE FILTER) */}
         {activeTab === 'campaigns' && (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Broadcast Campaigns & Performance Benchmarks</h3>
-                <p className="text-xs text-slate-500">Live ActiveCampaign broadcast health mapped against B2B marketing industry standards</p>
+            
+            {/* DATE RANGE FILTER BAR */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Calendar className="h-4 w-4 text-slate-400" />
+                <span className="text-xs font-bold text-slate-700">Date Range:</span>
+                <select
+                  value={campaignDatePreset}
+                  onChange={e => setCampaignDatePreset(e.target.value)}
+                  className="text-xs border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="All">All Time</option>
+                  <option value="30d">Last 30 Days</option>
+                  <option value="90d">Last 90 Days</option>
+                  <option value="custom">Custom Date Range</option>
+                </select>
               </div>
-              <div className="flex space-x-4 text-xs font-semibold">
-                <div className="bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-500">Industry Open Rate Benchmark: </span>
-                  <span className="text-slate-800 font-bold">21.5%</span>
+
+              {campaignDatePreset === 'custom' && (
+                <div className="flex items-center space-x-3 text-xs">
+                  <input
+                    type="date"
+                    value={campaignStartDate}
+                    onChange={e => setCampaignStartDate(e.target.value)}
+                    className="border border-slate-300 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-slate-400">to</span>
+                  <input
+                    type="date"
+                    value={campaignEndDate}
+                    onChange={e => setCampaignEndDate(e.target.value)}
+                    className="border border-slate-300 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
-                <div className="bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-500">Industry CTR Benchmark: </span>
-                  <span className="text-slate-800 font-bold">2.3%</span>
-                </div>
+              )}
+
+              <div className="text-xs font-medium text-slate-500">
+                Showing <span className="font-bold text-slate-900">{filteredCampaigns.length}</span> of {campaigns.length} campaigns
               </div>
             </div>
 
+            {/* EMAIL PERFORMANCE SCORECARD */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="p-4 rounded-xl border bg-white border-slate-200 shadow-sm space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Sent</span>
+                  <Send className="h-4 w-4 text-slate-400" />
+                </div>
+                <p className="text-2xl font-extrabold text-slate-900">{campaignScorecard.sent.toLocaleString()}</p>
+                <p className="text-[11px] text-slate-400">Total recipients reached</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-indigo-50 border-indigo-200 shadow-sm space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Total Opens</span>
+                  <Eye className="h-4 w-4 text-indigo-500" />
+                </div>
+                <p className="text-2xl font-extrabold text-indigo-900">{campaignScorecard.opens.toLocaleString()}</p>
+                <p className="text-[11px] text-indigo-600">Tracked email opens</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-blue-50 border-blue-200 shadow-sm space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-700">Total Clicks</span>
+                  <MousePointer className="h-4 w-4 text-blue-500" />
+                </div>
+                <p className="text-2xl font-extrabold text-blue-900">{campaignScorecard.clicks.toLocaleString()}</p>
+                <p className="text-[11px] text-blue-600">URL clicks recorded</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-200 shadow-sm space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Overall Open Rate</span>
+                  <span className="text-[10px] font-bold bg-emerald-200/60 text-emerald-800 px-1.5 py-0.5 rounded">Bench 21.5%</span>
+                </div>
+                <p className="text-2xl font-extrabold text-emerald-900">{campaignScorecard.openRate}%</p>
+                <p className="text-[11px] text-emerald-600">Opens / Total Sent</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-amber-50 border-amber-200 shadow-sm space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Overall Click Rate</span>
+                  <span className="text-[10px] font-bold bg-amber-200/60 text-amber-800 px-1.5 py-0.5 rounded">Bench 2.3%</span>
+                </div>
+                <p className="text-2xl font-extrabold text-amber-900">{campaignScorecard.clickRate}%</p>
+                <p className="text-[11px] text-amber-600">Clicks / Total Sent</p>
+              </div>
+            </div>
+
+            {/* CAMPAIGNS PERFORMANCE TABLE */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200">
+                <h3 className="text-base font-bold text-slate-900">Broadcast Campaign Details</h3>
+              </div>
               <div className="p-6 text-sm text-slate-500">
-                {campaigns.length === 0 ? 'No broadcast campaigns found in ActiveCampaign.' : (
+                {filteredCampaigns.length === 0 ? 'No broadcast campaigns found for the selected date range.' : (
                   <div className="space-y-4">
-                    {campaigns.map(c => {
+                    {filteredCampaigns.map(c => {
                       const sendAmt = Number(c.send_amt) || 1;
-                      const opens = Number(c.opens) || 0;
+                      const opens = Number(c.opens) || Number(c.uniqueopens) || 0;
+                      const clicks = Number(c.linkclicks) || Number(c.clicks) || 0;
                       const openRate = ((opens / sendAmt) * 100).toFixed(1);
-                      const isAboveAvg = openRate >= 21.5;
+                      const clickRate = ((clicks / sendAmt) * 100).toFixed(1);
+                      const isAboveAvg = Number(openRate) >= 21.5;
 
                       return (
                         <div key={c.id} className="p-4 border rounded-xl flex justify-between items-center bg-slate-50/50 hover:bg-slate-50 transition">
@@ -862,18 +976,20 @@ export default function App() {
                                 {isAboveAvg ? 'Above Benchmark' : 'Average Engagement'}
                               </span>
                             </div>
-                            <div className="text-xs text-slate-500">Status: {c.status} | Recipient Volume: {sendAmt.toLocaleString()}</div>
+                            <div className="text-xs text-slate-500">
+                              Status: {c.status} | Recipient Volume: {sendAmt.toLocaleString()} | Sent: {c.sdate || c.cdate || 'Recent'}
+                            </div>
                           </div>
 
                           <div className="flex items-center space-x-6 text-right">
                             <div>
-                              <div className="text-xs text-slate-400">Total Opens</div>
-                              <div className="text-sm font-bold text-slate-800">{opens.toLocaleString()}</div>
+                              <div className="text-xs text-slate-400">Opens / Clicks</div>
+                              <div className="text-xs font-bold text-slate-800">{opens.toLocaleString()} opens | {clicks.toLocaleString()} clicks</div>
                             </div>
                             <div>
-                              <div className="text-xs text-slate-400">Open Rate</div>
-                              <div className={`text-sm font-extrabold ${isAboveAvg ? 'text-emerald-600' : 'text-slate-800'}`}>
-                                {openRate}%
+                              <div className="text-xs text-slate-400">Open / Click Rate</div>
+                              <div className={`text-xs font-extrabold ${isAboveAvg ? 'text-emerald-600' : 'text-slate-800'}`}>
+                                {openRate}% open | {clickRate}% click
                               </div>
                             </div>
                           </div>
@@ -884,10 +1000,11 @@ export default function App() {
                 )}
               </div>
             </div>
+
           </div>
         )}
 
-        {/* AUTOMATIONS TAB (ENHANCED WORKFLOW HEALTH) */}
+        {/* AUTOMATIONS TAB */}
         {activeTab === 'automations' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
