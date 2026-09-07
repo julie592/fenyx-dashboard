@@ -5,7 +5,7 @@ import {
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
   CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
-  MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, TrendingUp
+  MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, TrendingUp, Sun
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
@@ -344,7 +344,44 @@ export default function App() {
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
   }, [processedLeads]);
 
-  // TOP PERFORMING SUBJECT LINES ENGINE
+  // EMAIL OPEN DAY AND TIME TREND ENGINE
+  const openTimeTrends = useMemo(() => {
+    const dayCounts = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 };
+    const timeSlots = {
+      'Morning (6AM - 12PM)': 0,
+      'Afternoon (12PM - 5PM)': 0,
+      'Evening (5PM - 9PM)': 0,
+      'Night (9PM - 6AM)': 0
+    };
+    let totalRecordedOpens = 0;
+
+    processedLeads.forEach(lead => {
+      const tagDates = lead.tagDates || {};
+      Object.entries(tagDates).forEach(([tag, dateStr]) => {
+        if (tag.includes('open') && dateStr) {
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime())) {
+            totalRecordedOpens++;
+            
+            // Day of week
+            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+            if (dayCounts[dayName] !== undefined) dayCounts[dayName]++;
+
+            // Time of day
+            const hr = d.getHours();
+            if (hr >= 6 && hr < 12) timeSlots['Morning (6AM - 12PM)']++;
+            else if (hr >= 12 && hr < 17) timeSlots['Afternoon (12PM - 5PM)']++;
+            else if (hr >= 17 && hr < 21) timeSlots['Evening (5PM - 9PM)']++;
+            else timeSlots['Night (9PM - 6AM)']++;
+          }
+        }
+      });
+    });
+
+    return { dayCounts, timeSlots, totalRecordedOpens };
+  }, [processedLeads]);
+
+  // TOP PERFORMING SUBJECT LINES ENGINE (USES ACTUAL SUBJECT LINE FIRST)
   const topSubjectLines = useMemo(() => {
     if (!campaigns || !campaigns.length) return [];
 
@@ -353,12 +390,12 @@ export default function App() {
         const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 0;
         const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
         const openRate = sendAmt > 0 ? (uniqueOpens / sendAmt) * 100 : 0;
-        const headline = c.subject || c.subject_line || c.name;
+        const actualSubject = c.subject || c.subject_line || 'No Subject Line Defined';
 
         return {
           id: c.id,
-          subject: headline,
-          name: c.name,
+          subject: actualSubject,
+          campaignName: c.name,
           sendAmt,
           uniqueOpens,
           openRate
@@ -765,52 +802,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* TOP PERFORMING EMAIL SUBJECT LINES SECTION */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Top Performing Email Subject Lines</h3>
-                  <p className="text-xs text-slate-500">Highest unique open rates across broadcast and sequence campaigns</p>
-                </div>
-                <span className="text-[10px] font-bold uppercase bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center space-x-1">
-                  <Award className="h-3 w-3 text-emerald-600" />
-                  <span>Open Rate Champions</span>
-                </span>
-              </div>
-
-              <div className="p-6">
-                {topSubjectLines.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">No campaign subject line metrics recorded yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {topSubjectLines.map((item, idx) => (
-                      <div key={item.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between hover:bg-slate-100/60 transition">
-                        <div className="flex items-center space-x-3 min-w-0 pr-4">
-                          <div className="flex-shrink-0 w-7 h-7 bg-indigo-100 text-indigo-800 font-extrabold text-xs rounded-lg flex items-center justify-center border border-indigo-200">
-                            #{idx + 1}
-                          </div>
-                          <div className="truncate space-y-0.5">
-                            <p className="font-bold text-slate-900 text-xs truncate leading-snug">{item.subject}</p>
-                            <p className="text-[11px] text-slate-500 truncate">
-                              Campaign: <strong className="text-slate-700">{item.name}</strong> • Sent: {item.sendAmt.toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="text-right flex-shrink-0 pl-2">
-                          <div className="text-xs font-extrabold text-emerald-600 flex items-center justify-end space-x-1">
-                            <TrendingUp className="h-3 w-3" />
-                            <span>{item.openRate.toFixed(1)}%</span>
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-medium">{item.uniqueOpens.toLocaleString()} unique opens</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                 <div>
@@ -893,6 +884,7 @@ export default function App() {
                 </div>
               </div>
 
+              {/* LIVE ENGAGEMENT STREAM */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center space-x-2">
@@ -925,6 +917,128 @@ export default function App() {
                     ))
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* EMAIL OPEN DAY AND TIME TREND SECTION */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Email Open Day & Time Trends</h3>
+                  <p className="text-xs text-slate-500">Distribution of subscriber email opens by day of week and time of day</p>
+                </div>
+                <div className="flex items-center space-x-1.5 text-xs text-indigo-600 font-bold bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>{openTimeTrends.totalRecordedOpens} Timestamps Analyzed</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Day of Week Distribution */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Open Rate by Day of Week</span>
+                  </h4>
+                  <div className="space-y-2">
+                    {Object.entries(openTimeTrends.dayCounts).map(([day, count]) => {
+                      const maxDay = Math.max(...Object.values(openTimeTrends.dayCounts), 1);
+                      const pct = Math.round((count / maxDay) * 100);
+
+                      return (
+                        <div key={day} className="space-y-1">
+                          <div className="flex justify-between text-xs font-medium">
+                            <span className="text-slate-700 w-10 font-bold">{day}</span>
+                            <span className="text-slate-500">{count} opens</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                            <div 
+                              className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Time Window Distribution */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
+                    <Sun className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Peak Engagement Time Slots</span>
+                  </h4>
+                  <div className="space-y-3">
+                    {Object.entries(openTimeTrends.timeSlots).map(([slot, count]) => {
+                      const total = openTimeTrends.totalRecordedOpens || 1;
+                      const pct = ((count / total) * 100).toFixed(1);
+
+                      return (
+                        <div key={slot} className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-1.5">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-800">{slot}</span>
+                            <span className="font-extrabold text-indigo-900">{count} ({pct}%)</span>
+                          </div>
+                          <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                            <div 
+                              className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* TOP PERFORMING EMAIL SUBJECT LINES SECTION (MOVED TO VERY BOTTOM) */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Top Performing Email Subject Lines</h3>
+                  <p className="text-xs text-slate-500">Highest unique open rates across broadcast and sequence campaigns</p>
+                </div>
+                <span className="text-[10px] font-bold uppercase bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center space-x-1">
+                  <Award className="h-3 w-3 text-emerald-600" />
+                  <span>Open Rate Champions</span>
+                </span>
+              </div>
+
+              <div className="p-6">
+                {topSubjectLines.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No campaign subject line metrics recorded yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {topSubjectLines.map((item, idx) => (
+                      <div key={item.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between hover:bg-slate-100/60 transition">
+                        <div className="flex items-center space-x-3 min-w-0 pr-4">
+                          <div className="flex-shrink-0 w-7 h-7 bg-indigo-100 text-indigo-800 font-extrabold text-xs rounded-lg flex items-center justify-center border border-indigo-200">
+                            #{idx + 1}
+                          </div>
+                          <div className="truncate space-y-0.5">
+                            <p className="font-extrabold text-slate-900 text-xs truncate leading-snug">
+                              Subject: "{item.subject}"
+                            </p>
+                            <p className="text-[11px] text-slate-500 truncate">
+                              Campaign Name: <span className="font-semibold text-slate-700">{item.campaignName}</span> • Total Sent: {item.sendAmt.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right flex-shrink-0 pl-2">
+                          <div className="text-xs font-extrabold text-emerald-600 flex items-center justify-end space-x-1">
+                            <TrendingUp className="h-3 w-3" />
+                            <span>{item.openRate.toFixed(1)}%</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-medium">{item.uniqueOpens.toLocaleString()} unique opens</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
