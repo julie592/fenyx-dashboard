@@ -3,7 +3,8 @@ import {
   Users, RefreshCw, Layers, Mail, 
   Search, Tag, BarChart2,
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
-  DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send
+  DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
+  CheckCircle2, Clock, UserPlus, XCircle, Award
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
@@ -194,6 +195,57 @@ export default function App() {
     });
   }, [processedLeads, spendSettings]);
 
+  // Google Event Analytics Engine
+  const googleEventStats = useMemo(() => {
+    let registered = 0;
+    let approved = 0;
+    let attended = 0;
+    let approvedNoShow = 0;
+    let rejected = 0;
+    let rsvpConfirmed = 0;
+    let rsvpPlusOne = 0;
+    let eventMqls = 0;
+
+    processedLeads.forEach(l => {
+      const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
+      const isRegistered = cleanTags.some(t => t.includes('reggoogleeventaugust2026'));
+
+      if (isRegistered) {
+        registered++;
+        if (l.leadType === 'MQL') eventMqls++;
+
+        if (cleanTags.some(t => t.includes('fpfapprovednoshow'))) {
+          approvedNoShow++;
+        } else if (cleanTags.some(t => t.includes('fpfapproved'))) {
+          approved++;
+        }
+
+        if (cleanTags.some(t => t.includes('fpfattended'))) attended++;
+        if (cleanTags.some(t => t.includes('fpfrejected'))) rejected++;
+        if (cleanTags.some(t => t.includes('rsvpconfirmed'))) rsvpConfirmed++;
+        if (cleanTags.some(t => t.includes('rsvpplusone'))) rsvpPlusOne++;
+      }
+    });
+
+    const spend = Number(spendSettings['Google event Registrants'] || 0);
+    const costPerMql = eventMqls > 0 ? spend / eventMqls : 0;
+    const costPerRegistrant = registered > 0 ? spend / registered : 0;
+
+    return {
+      registered,
+      approved,
+      attended,
+      approvedNoShow,
+      rejected,
+      rsvpConfirmed,
+      rsvpPlusOne,
+      eventMqls,
+      spend,
+      costPerMql,
+      costPerRegistrant
+    };
+  }, [processedLeads, spendSettings]);
+
   const totalContacts = processedLeads.length;
   const totalAdSpend = useMemo(() => {
     return Object.values(spendSettings).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
@@ -308,7 +360,6 @@ export default function App() {
     });
   }, [campaigns, campaignDatePreset, campaignStartDate, campaignEndDate]);
 
-  // Campaign Email Scorecard: Strict Unique Tracking Strategy
   const campaignScorecard = useMemo(() => {
     let uniqueSent = 0;
     let uniqueOpens = 0;
@@ -423,6 +474,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
+            { id: 'events', label: 'Events Tracker', icon: Calendar },
             { id: 'leads', label: `All Leads (${processedLeads.length})`, icon: Users },
             { id: 'spend', label: 'Marketing Spend', icon: DollarSign },
             { id: 'tag-rules', label: 'Tag Rules & Identifiers', icon: Tag },
@@ -614,6 +666,226 @@ export default function App() {
                   )}
                 </div>
               </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* EVENTS TAB */}
+        {activeTab === 'events' && (
+          <div className="space-y-8">
+            
+            {/* Event Header Banner */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span className="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">Featured Event</span>
+                  <span className="text-xs text-slate-400 font-medium">Tag: Reg-Google-Event-August-2026</span>
+                </div>
+                <h2 className="text-xl font-extrabold text-slate-900">Google Event PH - August 2026</h2>
+                <p className="text-xs text-slate-500">Live registrant tracking, approval verification, attendance counts, and cost efficiency</p>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setActiveTab('spend')}
+                  className="inline-flex items-center space-x-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-lg transition border border-slate-200"
+                >
+                  <DollarSign className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Update Event Budget</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Event Financial & Top Metric Scorecards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+              <div className="p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Registered</p>
+                <p className="text-2xl font-extrabold text-slate-900 mt-1">{googleEventStats.registered}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Total event signups</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Approved</p>
+                <p className="text-2xl font-extrabold text-emerald-900 mt-1">{googleEventStats.approved}</p>
+                <p className="text-[11px] text-emerald-600 mt-0.5">FPF-Approved tag</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-indigo-50 border-indigo-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Attended</p>
+                <p className="text-2xl font-extrabold text-indigo-900 mt-1">{googleEventStats.attended}</p>
+                <p className="text-[11px] text-indigo-600 mt-0.5">FPF-Attended tag</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-slate-100 border-slate-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Event Spend</p>
+                <p className="text-2xl font-extrabold text-slate-900 mt-1">${googleEventStats.spend.toLocaleString()}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Allocated lead spend</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-blue-50 border-blue-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Cost / Registrant</p>
+                <p className="text-2xl font-extrabold text-blue-900 mt-1">
+                  {googleEventStats.registered > 0 ? `$${googleEventStats.costPerRegistrant.toFixed(2)}` : '$0.00'}
+                </p>
+                <p className="text-[11px] text-blue-600 mt-0.5">Spend / Total Registered</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-purple-50 border-purple-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-purple-700">Cost / MQL</p>
+                <p className="text-2xl font-extrabold text-purple-900 mt-1">
+                  {googleEventStats.eventMqls > 0 ? `$${googleEventStats.costPerMql.toFixed(2)}` : '$0.00'}
+                </p>
+                <p className="text-[11px] text-purple-600 mt-0.5">{googleEventStats.eventMqls} Event MQLs</p>
+              </div>
+            </div>
+
+            {/* Registrant Status Breakdown & Visual RSVP Progress */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              
+              {/* Breakdown Table */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden space-y-0">
+                <div className="px-6 py-4 border-b border-slate-200">
+                  <h3 className="text-base font-bold text-slate-900">Registrant Status Breakdown</h3>
+                  <p className="text-xs text-slate-500">Segmented count of Google Event registrants by qualification tags</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-600">
+                    <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-3">Status Category</th>
+                        <th className="px-6 py-3">Tag Identifier</th>
+                        <th className="px-6 py-3">Count</th>
+                        <th className="px-6 py-3">% of Registered</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      <tr className="hover:bg-slate-50">
+                        <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          <span>Approved</span>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-mono text-slate-500">FPF-Approved</td>
+                        <td className="px-6 py-4 font-bold text-emerald-700">{googleEventStats.approved}</td>
+                        <td className="px-6 py-4 font-medium">
+                          {googleEventStats.registered > 0 ? ((googleEventStats.approved / googleEventStats.registered) * 100).toFixed(1) : 0}%
+                        </td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-50">
+                        <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
+                          <Award className="h-4 w-4 text-indigo-500" />
+                          <span>Attended</span>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-mono text-slate-500">FPF-Attended</td>
+                        <td className="px-6 py-4 font-bold text-indigo-700">{googleEventStats.attended}</td>
+                        <td className="px-6 py-4 font-medium">
+                          {googleEventStats.registered > 0 ? ((googleEventStats.attended / googleEventStats.registered) * 100).toFixed(1) : 0}%
+                        </td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-50">
+                        <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
+                          <Clock className="h-4 w-4 text-amber-500" />
+                          <span>Approved, No Show</span>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-mono text-slate-500">FPF-Approved-NoShow</td>
+                        <td className="px-6 py-4 font-bold text-amber-700">{googleEventStats.approvedNoShow}</td>
+                        <td className="px-6 py-4 font-medium">
+                          {googleEventStats.registered > 0 ? ((googleEventStats.approvedNoShow / googleEventStats.registered) * 100).toFixed(1) : 0}%
+                        </td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-50">
+                        <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
+                          <XCircle className="h-4 w-4 text-red-500" />
+                          <span>Rejected</span>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-mono text-slate-500">FPF-Rejected</td>
+                        <td className="px-6 py-4 font-bold text-red-700">{googleEventStats.rejected}</td>
+                        <td className="px-6 py-4 font-medium">
+                          {googleEventStats.registered > 0 ? ((googleEventStats.rejected / googleEventStats.registered) * 100).toFixed(1) : 0}%
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* RSVP & Visual Progress Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                <div className="border-b border-slate-100 pb-3">
+                  <h3 className="text-base font-bold text-slate-900">RSVP & Guest Confirmation Visualizer</h3>
+                  <p className="text-xs text-slate-500">Visual breakdown of approved candidates vs confirmed RSVPs & plus ones</p>
+                </div>
+
+                <div className="space-y-5">
+                  {/* Approved Bar */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-800 flex items-center space-x-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                        <span>Approved Applicants (FPF-Approved)</span>
+                      </span>
+                      <span className="font-extrabold text-slate-900">{googleEventStats.approved}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${googleEventStats.registered > 0 ? Math.min(100, (googleEventStats.approved / googleEventStats.registered) * 100) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* RSVP Confirmed Bar */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-800 flex items-center space-x-1.5">
+                        <UserCheck className="h-3.5 w-3.5 text-indigo-500" />
+                        <span>RSVP Confirmed (RSVP-Confirmed)</span>
+                      </span>
+                      <span className="font-extrabold text-slate-900">{googleEventStats.rsvpConfirmed}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${googleEventStats.approved > 0 ? Math.min(100, (googleEventStats.rsvpConfirmed / googleEventStats.approved) * 100) : 0}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 text-right">
+                      {googleEventStats.approved > 0 ? ((googleEventStats.rsvpConfirmed / googleEventStats.approved) * 100).toFixed(1) : 0}% RSVP rate from Approved
+                    </p>
+                  </div>
+
+                  {/* Plus One Bar */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-800 flex items-center space-x-1.5">
+                        <UserPlus className="h-3.5 w-3.5 text-amber-500" />
+                        <span>Registered Plus Ones (RSVP-Plus-one)</span>
+                      </span>
+                      <span className="font-extrabold text-slate-900">{googleEventStats.rsvpPlusOne}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${googleEventStats.rsvpConfirmed > 0 ? Math.min(100, (googleEventStats.rsvpPlusOne / googleEventStats.rsvpConfirmed) * 100) : 0}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 text-right">
+                      {googleEventStats.rsvpPlusOne} additional seats allocated for guest passes
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-lg text-xs flex justify-between items-center">
+                  <span className="text-slate-600 font-medium">Estimated Venue Headcount:</span>
+                  <span className="font-extrabold text-indigo-900 text-sm">
+                    {googleEventStats.rsvpConfirmed + googleEventStats.rsvpPlusOne} Total Attendees
+                  </span>
+                </div>
+              </div>
+
             </div>
 
           </div>
@@ -860,7 +1132,7 @@ export default function App() {
           </div>
         )}
 
-        {/* CAMPAIGNS TAB (UNIQUE TRACKING ENHANCEMENT) */}
+        {/* CAMPAIGNS TAB */}
         {activeTab === 'campaigns' && (
           <div className="space-y-6">
             
