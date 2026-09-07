@@ -43,7 +43,7 @@ const DEFAULT_SPEND_SETTINGS = {
   'Internal leads': 0
 };
 
-// Global memory cache to prevent cold-start resets
+// Global memory cache
 const memoryCache = {
   tagRules: { ...DEFAULT_TAG_RULES },
   spendSettings: { ...DEFAULT_SPEND_SETTINGS }
@@ -53,7 +53,6 @@ if (MONGO_URI) {
   mongoose.connect(MONGO_URI)
     .then(async () => {
       console.log('✅ Connected to MongoDB Atlas!');
-      // Hydrate memory cache from DB on startup
       try {
         const rulesDoc = await Config.findOne({ key: 'tagRules' });
         if (rulesDoc?.data) memoryCache.tagRules = rulesDoc.data;
@@ -87,7 +86,7 @@ async function getConfig(key, fallback) {
 }
 
 async function saveConfig(key, data) {
-  memoryCache[key] = data; // Instant cache update
+  memoryCache[key] = data;
   if (mongoose.connection.readyState === 1) {
     try {
       await Config.findOneAndUpdate(
@@ -261,8 +260,12 @@ app.get('/api/contacts', async (req, res) => {
 });
 
 app.get('/api/campaigns', async (req, res) => {
-  try { res.json({ success: true, count: (await getAllPages('/campaigns', 'campaigns')).length, campaigns: await getAllPages('/campaigns', 'campaigns') }); } 
-  catch (err) { res.status(500).json({ error: err.message }); }
+  try { 
+    const campaigns = await getAllPages('/campaigns?include=campaignMessage', 'campaigns');
+    res.json({ success: true, count: campaigns.length, campaigns }); 
+  } catch (err) { 
+    res.status(500).json({ error: err.message }); 
+  }
 });
 
 app.get('/api/automations', async (req, res) => {
