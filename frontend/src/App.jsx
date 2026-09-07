@@ -159,7 +159,6 @@ export default function App() {
 
       let detectedType = 'Cold';
       
-      // Added safety check (r.trim() !== '') to prevent empty strings from matching everything
       const isNotQual = tags.some(t => tagRules['Not Qualified']?.some(r => r.trim() !== '' && t.includes(r.toLowerCase())));
       const isMql = tags.some(t => tagRules['MQL']?.some(r => r.trim() !== '' && t.includes(r.toLowerCase())));
       const isHot = tags.some(t => tagRules['Hot']?.some(r => r.trim() !== '' && t.includes(r.toLowerCase())));
@@ -662,32 +661,56 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {/* OVERVIEW TAB */}
+        {/* OVERVIEW TAB WITH UPDATED 8-CARD METRIC GRID */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-4">
-              <div className="p-4 rounded-xl border text-slate-900 bg-white border-slate-200 shadow-sm col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl border text-slate-900 bg-white border-slate-200 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Contacts</p>
                 <p className="text-3xl font-extrabold mt-1">{totalContacts.toLocaleString()}</p>
                 <p className="text-[11px] text-slate-400 mt-1">Active sync database</p>
               </div>
 
-              <div className="p-4 rounded-xl border text-emerald-900 bg-emerald-50 border-emerald-200 shadow-sm col-span-2">
+              <div className="p-4 rounded-xl border text-emerald-900 bg-emerald-50 border-emerald-200 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Total Ad Spend</p>
                 <p className="text-3xl font-extrabold mt-1">${totalAdSpend.toLocaleString()}</p>
                 <p className="text-[11px] text-emerald-600 mt-1">Configured lead sources</p>
               </div>
 
-              <div className="p-4 rounded-xl border text-indigo-900 bg-indigo-50 border-indigo-200 shadow-sm col-span-2">
+              <div className="p-4 rounded-xl border text-indigo-900 bg-indigo-50 border-indigo-200 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Cost per MQL</p>
                 <p className="text-3xl font-extrabold mt-1">${overallCostPerMQL.toFixed(2)}</p>
                 <p className="text-[11px] text-indigo-600 mt-1">{totalMQLs} Total MQLs</p>
               </div>
 
-              <div className="p-4 rounded-xl border text-red-900 bg-red-50 border-red-200 shadow-sm col-span-2">
+              <div className="p-4 rounded-xl border text-purple-900 bg-purple-50 border-purple-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-purple-700">MQL Leads</p>
+                <p className="text-3xl font-extrabold mt-1">{totalMQLs}</p>
+                <p className="text-[11px] text-purple-600 mt-1">Qualified prospects</p>
+              </div>
+
+              <div className="p-4 rounded-xl border text-red-900 bg-red-50 border-red-200 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-red-700">Hot Leads</p>
                 <p className="text-3xl font-extrabold mt-1">{leadTypeCounts.Hot}</p>
                 <p className="text-[11px] text-red-600 mt-1">High conversion intent</p>
+              </div>
+
+              <div className="p-4 rounded-xl border text-amber-900 bg-amber-50 border-amber-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-700">Warm Leads</p>
+                <p className="text-3xl font-extrabold mt-1">{leadTypeCounts.Warm}</p>
+                <p className="text-[11px] text-amber-600 mt-1">Engaged contacts</p>
+              </div>
+
+              <div className="p-4 rounded-xl border text-blue-900 bg-blue-50 border-blue-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Cold Leads</p>
+                <p className="text-3xl font-extrabold mt-1">{leadTypeCounts.Cold}</p>
+                <p className="text-[11px] text-blue-600 mt-1">Unengaged prospects</p>
+              </div>
+
+              <div className="p-4 rounded-xl border text-slate-700 bg-slate-100 border-slate-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Not Qualified</p>
+                <p className="text-3xl font-extrabold mt-1">{leadTypeCounts['Not Qualified'] || 0}</p>
+                <p className="text-[11px] text-slate-400 mt-1">Unmatched / Rejected</p>
               </div>
             </div>
 
@@ -1321,7 +1344,7 @@ export default function App() {
 
             <div className="space-y-6">
               
-              {/* SECTION 1: AUTOMATION & SEQUENCE EMAILS (PARENT AUTOMATION CARDS) */}
+              {/* SECTION 1: AUTOMATION & SEQUENCE EMAILS */}
               {(campaignTypeFilter === 'all' || campaignTypeFilter === 'automation') && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3">
