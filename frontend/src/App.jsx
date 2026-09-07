@@ -281,7 +281,6 @@ export default function App() {
     ];
   }, [sourceBreakdown, roleBreakdown, totalContacts, totalMQLs, leadTypeCounts]);
 
-  // Campaign Date Range Filtering
   const filteredCampaigns = useMemo(() => {
     return campaigns.filter(c => {
       const sendDateStr = c.sdate || c.cdate || c.send_date;
@@ -309,22 +308,26 @@ export default function App() {
     });
   }, [campaigns, campaignDatePreset, campaignStartDate, campaignEndDate]);
 
-  // Campaign Email Scorecard Metrics Calculation
+  // Campaign Email Scorecard: Strict Unique Tracking Strategy
   const campaignScorecard = useMemo(() => {
-    let sent = 0;
-    let opens = 0;
-    let clicks = 0;
+    let uniqueSent = 0;
+    let uniqueOpens = 0;
+    let uniqueClicks = 0;
 
     filteredCampaigns.forEach(c => {
-      sent += Number(c.send_amt) || 0;
-      opens += Number(c.opens) || Number(c.uniqueopens) || 0;
-      clicks += Number(c.linkclicks) || Number(c.clicks) || Number(c.subscriberclicks) || 0;
+      const cSent = Number(c.send_amt) || Number(c.unique_send) || 0;
+      const cUniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
+      const cUniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
+
+      uniqueSent += cSent;
+      uniqueOpens += cUniqueOpens;
+      uniqueClicks += cUniqueClicks;
     });
 
-    const openRate = sent > 0 ? ((opens / sent) * 100).toFixed(1) : '0.0';
-    const clickRate = sent > 0 ? ((clicks / sent) * 100).toFixed(1) : '0.0';
+    const openRate = uniqueSent > 0 ? ((uniqueOpens / uniqueSent) * 100).toFixed(1) : '0.0';
+    const clickRate = uniqueSent > 0 ? ((uniqueClicks / uniqueSent) * 100).toFixed(1) : '0.0';
 
-    return { sent, opens, clicks, openRate, clickRate };
+    return { uniqueSent, uniqueOpens, uniqueClicks, openRate, clickRate };
   }, [filteredCampaigns]);
 
   const uniquePipelineStages = useMemo(() => {
@@ -857,7 +860,7 @@ export default function App() {
           </div>
         )}
 
-        {/* CAMPAIGNS TAB (WITH SCORECARD & DATE FILTER) */}
+        {/* CAMPAIGNS TAB (UNIQUE TRACKING ENHANCEMENT) */}
         {activeTab === 'campaigns' && (
           <div className="space-y-6">
             
@@ -901,51 +904,51 @@ export default function App() {
               </div>
             </div>
 
-            {/* EMAIL PERFORMANCE SCORECARD */}
+            {/* EMAIL PERFORMANCE UNIQUE SCORECARD */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="p-4 rounded-xl border bg-white border-slate-200 shadow-sm space-y-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Sent</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Unique Sent</span>
                   <Send className="h-4 w-4 text-slate-400" />
                 </div>
-                <p className="text-2xl font-extrabold text-slate-900">{campaignScorecard.sent.toLocaleString()}</p>
-                <p className="text-[11px] text-slate-400">Total recipients reached</p>
+                <p className="text-2xl font-extrabold text-slate-900">{campaignScorecard.uniqueSent.toLocaleString()}</p>
+                <p className="text-[11px] text-slate-400">Unique recipients reached</p>
               </div>
 
               <div className="p-4 rounded-xl border bg-indigo-50 border-indigo-200 shadow-sm space-y-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Total Opens</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Unique Opens</span>
                   <Eye className="h-4 w-4 text-indigo-500" />
                 </div>
-                <p className="text-2xl font-extrabold text-indigo-900">{campaignScorecard.opens.toLocaleString()}</p>
-                <p className="text-[11px] text-indigo-600">Tracked email opens</p>
+                <p className="text-2xl font-extrabold text-indigo-900">{campaignScorecard.uniqueOpens.toLocaleString()}</p>
+                <p className="text-[11px] text-indigo-600">Distinct subscriber opens</p>
               </div>
 
               <div className="p-4 rounded-xl border bg-blue-50 border-blue-200 shadow-sm space-y-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase tracking-wider text-blue-700">Total Clicks</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-700">Unique Clicks</span>
                   <MousePointer className="h-4 w-4 text-blue-500" />
                 </div>
-                <p className="text-2xl font-extrabold text-blue-900">{campaignScorecard.clicks.toLocaleString()}</p>
-                <p className="text-[11px] text-blue-600">URL clicks recorded</p>
+                <p className="text-2xl font-extrabold text-blue-900">{campaignScorecard.uniqueClicks.toLocaleString()}</p>
+                <p className="text-[11px] text-blue-600">Distinct subscriber clicks</p>
               </div>
 
               <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-200 shadow-sm space-y-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Overall Open Rate</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Unique Open Rate</span>
                   <span className="text-[10px] font-bold bg-emerald-200/60 text-emerald-800 px-1.5 py-0.5 rounded">Bench 21.5%</span>
                 </div>
                 <p className="text-2xl font-extrabold text-emerald-900">{campaignScorecard.openRate}%</p>
-                <p className="text-[11px] text-emerald-600">Opens / Total Sent</p>
+                <p className="text-[11px] text-emerald-600">Unique Opens / Unique Sent</p>
               </div>
 
               <div className="p-4 rounded-xl border bg-amber-50 border-amber-200 shadow-sm space-y-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Overall Click Rate</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Unique Click Rate</span>
                   <span className="text-[10px] font-bold bg-amber-200/60 text-amber-800 px-1.5 py-0.5 rounded">Bench 2.3%</span>
                 </div>
                 <p className="text-2xl font-extrabold text-amber-900">{campaignScorecard.clickRate}%</p>
-                <p className="text-[11px] text-amber-600">Clicks / Total Sent</p>
+                <p className="text-[11px] text-amber-600">Unique Clicks / Unique Sent</p>
               </div>
             </div>
 
@@ -958,11 +961,11 @@ export default function App() {
                 {filteredCampaigns.length === 0 ? 'No broadcast campaigns found for the selected date range.' : (
                   <div className="space-y-4">
                     {filteredCampaigns.map(c => {
-                      const sendAmt = Number(c.send_amt) || 1;
-                      const opens = Number(c.opens) || Number(c.uniqueopens) || 0;
-                      const clicks = Number(c.linkclicks) || Number(c.clicks) || 0;
-                      const openRate = ((opens / sendAmt) * 100).toFixed(1);
-                      const clickRate = ((clicks / sendAmt) * 100).toFixed(1);
+                      const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 1;
+                      const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
+                      const uniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
+                      const openRate = ((uniqueOpens / sendAmt) * 100).toFixed(1);
+                      const clickRate = ((uniqueClicks / sendAmt) * 100).toFixed(1);
                       const isAboveAvg = Number(openRate) >= 21.5;
 
                       return (
@@ -977,17 +980,17 @@ export default function App() {
                               </span>
                             </div>
                             <div className="text-xs text-slate-500">
-                              Status: {c.status} | Recipient Volume: {sendAmt.toLocaleString()} | Sent: {c.sdate || c.cdate || 'Recent'}
+                              Status: {c.status} | Unique Recipients: {sendAmt.toLocaleString()} | Sent: {c.sdate || c.cdate || 'Recent'}
                             </div>
                           </div>
 
                           <div className="flex items-center space-x-6 text-right">
                             <div>
-                              <div className="text-xs text-slate-400">Opens / Clicks</div>
-                              <div className="text-xs font-bold text-slate-800">{opens.toLocaleString()} opens | {clicks.toLocaleString()} clicks</div>
+                              <div className="text-xs text-slate-400">Unique Opens / Clicks</div>
+                              <div className="text-xs font-bold text-slate-800">{uniqueOpens.toLocaleString()} opens | {uniqueClicks.toLocaleString()} clicks</div>
                             </div>
                             <div>
-                              <div className="text-xs text-slate-400">Open / Click Rate</div>
+                              <div className="text-xs text-slate-400">Unique Rates</div>
                               <div className={`text-xs font-extrabold ${isAboveAvg ? 'text-emerald-600' : 'text-slate-800'}`}>
                                 {openRate}% open | {clickRate}% click
                               </div>
