@@ -4,13 +4,14 @@ import {
   Search, Tag, BarChart2,
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
-  CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle
+  CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
+  MessageSquare, Bot, ChevronDown, Minimize2
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
 
 const DEFAULT_TAG_RULES = {
-  MQL: ['FPF-Approved','FPF-Waitlisted'],
+  MQL: ['FPF-Approved','FPF-Waitlisted],
   Hot: [''],
   Warm: ['Growth Review - Coming Soon Form'],
   Cold: [''],
@@ -61,6 +62,16 @@ export default function App() {
   // Event Selection & Modal States
   const [selectedEventId, setSelectedEventId] = useState('google-ph-aug-2026');
   const [tagLeadModal, setTagLeadModal] = useState(null);
+
+  // Gemini Floating Chatbot State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState([
+    {
+      sender: 'gemini',
+      text: 'Hello! I am your Fenyx AI Intelligence Assistant. Ask me anything about your contacts, conversion rates, event metrics, or spend efficiency!'
+    }
+  ]);
 
   const [tagRules, setTagRules] = useState(DEFAULT_TAG_RULES);
   const [spendSettings, setSpendSettings] = useState(DEFAULT_SPEND);
@@ -370,17 +381,38 @@ export default function App() {
     return actions.slice(0, 7);
   }, [processedLeads]);
 
-  const geminiInsights = useMemo(() => {
-    const topSource = [...sourceBreakdown].sort((a, b) => b.mqls - a.mqls)[0];
-    const topRole = [...roleBreakdown].sort((a, b) => b.total - a.total)[0];
-    const mqlRatio = totalContacts > 0 ? ((totalMQLs / totalContacts) * 100).toFixed(1) : 0;
+  // Context-Aware Chatbot Response Engine
+  const handleSendMessage = (textToSend) => {
+    const query = (textToSend || chatInput).trim();
+    if (!query) return;
 
-    return [
-      `Channel Efficiency: "${topSource?.source || 'Google Event'}" is your highest converting channel generating ${topSource?.mqls || 0} MQLs at ${topSource?.cpmql ? `$${topSource.cpmql.toFixed(2)}` : '$0.00'}/MQL.`,
-      `Persona Target: The "${topRole?.role || 'C-Level'}" cohort represents your largest decision-maker concentration (${topRole?.total || 0} contacts).`,
-      `Pipeline Readiness: ${mqlRatio}% of your active database is currently classified as MQL. Accelerate lead velocity by targeting the ${leadTypeCounts.Warm} Warm leads with direct outreach.`
-    ];
-  }, [sourceBreakdown, roleBreakdown, totalContacts, totalMQLs, leadTypeCounts]);
+    const newMessages = [...chatMessages, { sender: 'user', text: query }];
+    setChatMessages(newMessages);
+    setChatInput('');
+
+    setTimeout(() => {
+      let botResponse = '';
+      const lowerQ = query.toLowerCase();
+
+      if (lowerQ.includes('attended') || lowerQ.includes('google event') || lowerQ.includes('event')) {
+        botResponse = `For "${activeEvent.name}", exactly ${activeEventStats.attended} registrants possess the "FPF-Attended" tag out of ${activeEventStats.registered} total registered contacts (${activeEventStats.registered > 0 ? ((activeEventStats.attended / activeEventStats.registered) * 100).toFixed(1) : 0}% attendance rate).`;
+      } else if (lowerQ.includes('cost per mql') || lowerQ.includes('cpmql') || lowerQ.includes('cost/mql')) {
+        botResponse = `Your overall Cost per MQL across all channels is $${overallCostPerMQL.toFixed(2)} based on $${totalAdSpend.toLocaleString()} total marketing spend and ${totalMQLs} total MQLs generated.`;
+      } else if (lowerQ.includes('role') || lowerQ.includes('persona')) {
+        const topRole = [...roleBreakdown].sort((a, b) => b.total - a.total)[0];
+        botResponse = `Your highest concentration role is "${topRole?.role}" with ${topRole?.total} total contacts (${topRole?.mql} converted to MQL).`;
+      } else if (lowerQ.includes('source') || lowerQ.includes('channel')) {
+        const topSource = [...sourceBreakdown].sort((a, b) => b.mqls - a.mqls)[0];
+        botResponse = `Your top-performing lead source is "${topSource?.source}" producing ${topSource?.mqls} MQLs at $${topSource?.cpmql?.toFixed(2)}/MQL.`;
+      } else if (lowerQ.includes('growth audit') || lowerQ.includes('audit')) {
+        botResponse = `There are currently ${activeEventStats.growthAuditCount} attendees who have requested a Growth Audit (tagged "FPF-Growth-Audit" or clicked the audit link).`;
+      } else {
+        botResponse = `I analyzed your live CRM data: You currently have ${totalContacts.toLocaleString()} total contacts (${leadTypeCounts.Hot} Hot, ${leadTypeCounts.Warm} Warm, ${leadTypeCounts.MQL} MQLs). Total configured spend is $${totalAdSpend.toLocaleString()}.`;
+      }
+
+      setChatMessages(prev => [...prev, { sender: 'gemini', text: botResponse }]);
+    }, 400);
+  };
 
   const filteredCampaigns = useMemo(() => {
     return campaigns.filter(c => {
@@ -494,7 +526,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* TABS MENU: RE-ARRANGED ORDER */}
+        {/* RE-ARRANGED TAB NAVIGATION */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
@@ -527,7 +559,7 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {/* OVERVIEW TAB */}
+        {/* OVERVIEW TAB (REMOVED STATIC GEMINI BANNER) */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-4">
@@ -553,31 +585,6 @@ export default function App() {
                 <p className="text-xs font-bold uppercase tracking-wider text-red-700">Hot Leads</p>
                 <p className="text-3xl font-extrabold mt-1">{leadTypeCounts.Hot}</p>
                 <p className="text-[11px] text-red-600 mt-1">High conversion intent</p>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-slate-800 text-white rounded-xl p-6 shadow-md border border-slate-700 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="bg-indigo-500/20 p-2 rounded-lg border border-indigo-400/30">
-                    <Sparkles className="h-5 w-5 text-indigo-300 animate-pulse" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base tracking-wide flex items-center space-x-2">
-                      <span>Gemini Executive AI Contact Insights</span>
-                      <span className="text-[10px] uppercase font-bold bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full border border-indigo-400/30">Live Intelligence</span>
-                    </h3>
-                    <p className="text-xs text-slate-300">Automated performance synthesis generated from active CRM streams</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                {geminiInsights.map((insight, idx) => (
-                  <div key={idx} className="bg-white/5 border border-white/10 rounded-lg p-3.5 space-y-1 backdrop-blur-xs">
-                    <p className="text-slate-200 leading-relaxed">{insight}</p>
-                  </div>
-                ))}
               </div>
             </div>
 
@@ -1113,8 +1120,6 @@ export default function App() {
         {/* CAMPAIGNS TAB */}
         {activeTab === 'campaigns' && (
           <div className="space-y-6">
-            
-            {/* DATE RANGE FILTER BAR */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
               <div className="flex items-center space-x-3">
                 <Calendar className="h-4 w-4 text-slate-400" />
@@ -1154,7 +1159,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* EMAIL PERFORMANCE UNIQUE SCORECARD */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="p-4 rounded-xl border bg-white border-slate-200 shadow-sm space-y-1">
                 <div className="flex justify-between items-center">
@@ -1202,7 +1206,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* CAMPAIGNS PERFORMANCE TABLE */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Broadcast Campaign Details</h3>
@@ -1331,7 +1334,7 @@ export default function App() {
           </div>
         )}
 
-        {/* RULES TAB (RENAMED FROM TAG RULES & IDENTIFIERS) */}
+        {/* RULES TAB */}
         {activeTab === 'tag-rules' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-2">
@@ -1407,6 +1410,103 @@ export default function App() {
 
       </main>
 
+      {/* FLOATING GEMINI AI CHATBOT BUTTON */}
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-indigo-600 to-slate-900 hover:from-indigo-700 hover:to-slate-800 text-white p-3.5 rounded-full shadow-2xl flex items-center space-x-2.5 transition transform hover:scale-105 border border-indigo-400/30"
+        >
+          <div className="relative">
+            <Sparkles className="h-5 w-5 text-indigo-300 animate-pulse" />
+            <span className="absolute -top-1 -right-1 h-2 w-2 bg-emerald-400 rounded-full animate-ping" />
+          </div>
+          <span className="text-xs font-bold pr-1">Ask Gemini AI</span>
+        </button>
+      )}
+
+      {/* FLOATING GEMINI AI CHATBOT DRAWER */}
+      {isChatOpen && (
+        <div className="fixed bottom-6 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-[520px]">
+          
+          {/* Drawer Header */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 flex items-center justify-between border-b border-indigo-900/50">
+            <div className="flex items-center space-x-2.5">
+              <div className="bg-indigo-500/20 p-2 rounded-lg border border-indigo-400/30">
+                <Sparkles className="h-4 w-4 text-indigo-300" />
+              </div>
+              <div>
+                <h3 className="font-bold text-xs tracking-wide">Gemini Marketing Assistant</h3>
+                <p className="text-[10px] text-indigo-200/80">Live CRM Intelligence Stream</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsChatOpen(false)}
+              className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition"
+            >
+              <Minimize2 className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Chat Messages */}
+          <div className="p-4 flex-1 overflow-y-auto space-y-3 bg-slate-50/50 text-xs">
+            {chatMessages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] p-3 rounded-xl leading-relaxed ${
+                  msg.sender === 'user' 
+                    ? 'bg-indigo-600 text-white font-medium rounded-br-none' 
+                    : 'bg-white border border-slate-200 text-slate-800 shadow-xs rounded-bl-none'
+                }`}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Recommended Questions Suggestions Bar */}
+          <div className="px-3 py-2 bg-slate-100/80 border-t border-slate-200/60 overflow-x-auto whitespace-nowrap flex space-x-2 text-[10px]">
+            <button
+              onClick={() => handleSendMessage("How many google event registrants attended?")}
+              className="bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-2.5 py-1 rounded-full font-medium transition shadow-2xs"
+            >
+              How many google event registrants attended?
+            </button>
+            <button
+              onClick={() => handleSendMessage("What is our overall Cost per MQL?")}
+              className="bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-2.5 py-1 rounded-full font-medium transition shadow-2xs"
+            >
+              Cost per MQL?
+            </button>
+            <button
+              onClick={() => handleSendMessage("Which role category has the most leads?")}
+              className="bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-2.5 py-1 rounded-full font-medium transition shadow-2xs"
+            >
+              Top Role?
+            </button>
+          </div>
+
+          {/* Chat Input */}
+          <form 
+            onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
+            className="p-3 bg-white border-t border-slate-200 flex space-x-2 items-center"
+          >
+            <input
+              type="text"
+              placeholder="Ask Gemini anything..."
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              className="flex-1 text-xs border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            />
+            <button
+              type="submit"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg transition"
+            >
+              <Send className="h-3.5 w-3.5" />
+            </button>
+          </form>
+
+        </div>
+      )}
+
       {/* ENHANCED NURTURE RESPONSE DRILL-DOWN MODAL */}
       {tagLeadModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1426,7 +1526,6 @@ export default function App() {
 
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
               
-              {/* Conditional Banner based on Growth Audit or Resources */}
               {!tagLeadModal.isGrowthAudit && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 flex items-center space-x-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
@@ -1463,7 +1562,6 @@ export default function App() {
                           t.includes('growth-audit')
                         );
 
-                        // Calculate Exact Action Date from specific tag/link click
                         let actionDateStr = null;
                         if (tagLeadModal.isGrowthAudit) {
                           const triggerMatch = cleanTags.find(t => t.includes('futureproofforum2026growthaudit') || t === 'fpfgrowthaudit' || t.includes('growthaudit'));
@@ -1479,7 +1577,6 @@ export default function App() {
                           }
                         }
 
-                        // Growth Audit Sent Status Logic
                         const hasSentTag = cleanTags.includes('fpfgrowthauditsent');
 
                         return (
