@@ -29,18 +29,21 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.get('/api/test', async (req, res) => {
-  if (!AC_URL || !AC_KEY) {
-    return res.status(500).json({ 
-      connected: false, 
-      error: 'Missing ACTIVECAMPAIGN_URL or ACTIVECAMPAIGN_API_KEY.' 
-    });
-  }
+// Diagnostic endpoint to inspect all ActiveCampaign custom field tags
+app.get('/api/debug-fields', async (req, res) => {
   try {
-    const response = await acApi.get('/users/me');
-    res.json({ connected: true, user: response.data.user?.email || 'Authenticated' });
+    const fieldsRes = await acApi.get('/fields?limit=100');
+    res.json({
+      success: true,
+      fields: fieldsRes.data.fields.map(f => ({
+        id: f.id,
+        title: f.title,
+        pertag: f.pertag,
+        cleanKey: (f.pertag || f.title || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+      }))
+    });
   } catch (err) {
-    res.status(500).json({ connected: false, error: err.response?.data || err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -50,9 +53,25 @@ app.get('/api/contacts', async (req, res) => {
   }
 
   try {
+    // 1. Fetch Master Custom Field Definitions Dictionary
+    let fieldMetaMap = {};
+    try {
+      const fieldsRes = await acApi.get('/fields?limit=100');
+      const customFields = fieldsRes.data?.fields || [];
+      customFields.forEach(f => {
+        if (f.id) {
+          const cleanTitle = (f.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cleanPertag = (f.pertag || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          fieldMetaMap[f.id] = { cleanTitle, cleanPertag, title: f.title, pertag: f.pertag };
+        }
+      });
+    } catch (e) {
+      console.error('Failed to fetch master /fields:', e.message);
+    }
+
+    // 2. Fetch All Contacts & Relational Field Data via Multi-Page Pagination
     let allContacts = [];
     let allFieldValues = [];
-    let allFields = [];
     let allContactTags = [];
     let allTags = [];
     let allContactAutomations = [];
@@ -64,13 +83,12 @@ app.get('/api/contacts', async (req, res) => {
 
     while (keepFetching) {
       const response = await acApi.get(
-        `/contacts?limit=${limit}&offset=${offset}&include=fieldValues,fields,contactTags.tag,contactAutomations`
+        `/contacts?limit=${limit}&offset=${offset}&include=fieldValues,contactTags.tag,contactAutomations`
       );
 
       const {
         contacts = [],
         fieldValues = [],
-        fields = [],
         contactTags = [],
         tags = [],
         contactAutomations = [],
@@ -88,7 +106,6 @@ app.get('/api/contacts', async (req, res) => {
 
       allContacts = allContacts.concat(contacts);
       if (Array.isArray(fieldValues)) allFieldValues = allFieldValues.concat(fieldValues);
-      if (Array.isArray(fields)) allFields = allFields.concat(fields);
       if (Array.isArray(contactTags)) allContactTags = allContactTags.concat(contactTags);
       if (Array.isArray(tags)) allTags = allTags.concat(tags);
       if (Array.isArray(contactAutomations)) allContactAutomations = allContactAutomations.concat(contactAutomations);
@@ -102,30 +119,23 @@ app.get('/api/contacts', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    // Map custom field metadata (ID -> Tag / Title)
-    const fieldMetaMap = {};
-    allFields.forEach(f => {
-      if (f?.id) {
-        const pertag = (f.pertag || '').replace(/%/g, '').toUpperCase().trim();
-        const title = (f.title || '').toUpperCase().trim();
-        fieldMetaMap[f.id] = { pertag, title };
-      }
-    });
-
-    // Map custom field values per contact
+    // 3. Group Custom Field Values by Contact ID
     const contactCustomMap = {};
     allFieldValues.forEach(fv => {
       if (fv?.contact && fv?.field && fv?.val !== undefined && fv?.val !== null && fv?.val !== '') {
-        if (!contactCustomMap[fv.contact]) contactCustomMap[fv.contact] = {};
-        const metaInfo = fieldMetaMap[fv.field];
-        if (metaInfo) {
-          if (metaInfo.pertag) contactCustomMap[fv.contact][metaInfo.pertag] = fv.val;
-          if (metaInfo.title) contactCustomMap[fv.contact][metaInfo.title] = fv.val;
+        const cid = fv.contact;
+        if (!contactCustomMap[cid]) contactCustomMap[cid] = {};
+        
+        const meta = fieldMetaMap[fv.field];
+        if (meta) {
+          if (meta.cleanPertag) contactCustomMap[cid][meta.cleanPertag] = fv.val;
+          if (meta.cleanTitle) contactCustomMap[cid][meta.cleanTitle] = fv.val;
         }
+        contactCustomMap[cid][`raw_${fv.field}`] = fv.val;
       }
     });
 
-    // Tag and automation mapping
+    // 4. Group Tags & Automations
     const tagMap = {};
     allTags.forEach(t => { if (t?.id) tagMap[t.id] = t.tag; });
 
@@ -150,29 +160,30 @@ app.get('/api/contacts', async (req, res) => {
       }
     });
 
+    // 5. Format Output Records
     const formattedContacts = allContacts.map(c => {
       const rawTags = contactTagMap[c.id] || [];
       const autoData = contactAutoMap[c.id] || { total: 0, active: 0, completed: 0 };
       const custom = contactCustomMap[c.id] || {};
 
-      // Helper to pull custom fields by tag or title
-      const getVal = (...keys) => {
-        for (const k of keys) {
-          const formattedKey = String(k).replace(/%/g, '').toUpperCase().trim();
-          if (custom[formattedKey] && custom[formattedKey] !== '') return custom[formattedKey];
+      // Helper for fuzzy custom field extraction
+      const getVal = (...searchKeys) => {
+        for (const k of searchKeys) {
+          const cleanKey = String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (custom[cleanKey] && custom[cleanKey] !== '') return custom[cleanKey];
         }
         return '—';
       };
 
-      const companyVal = getVal('COMPANY', '%COMPANY%', 'Organization', 'Company Name') !== '—' 
-        ? getVal('COMPANY', '%COMPANY%', 'Organization', 'Company Name')
+      const companyVal = getVal('company', 'organization', 'companyname', 'orgname') !== '—'
+        ? getVal('company', 'organization', 'companyname', 'orgname')
         : (c.orgname || c.organization || '—');
 
-      const roleVal = getVal('ROLE', '%ROLE%', 'Job Title', 'Role', 'Title');
-      const ownerVal = getVal('LEAD_OWNER', '%LEAD_OWNER%', 'Lead Owner', 'Owner');
-      const stageVal = getVal('PIPELINE_STAGE', '%PIPELINE_STAGE%', 'Pipeline Stage', 'Stage');
-      const sourceVal = getVal('LEAD_SOURCE', '%LEAD_SOURCE%', 'Lead Source', 'Source', 'UTM_SOURCE') !== '—'
-        ? getVal('LEAD_SOURCE', '%LEAD_SOURCE%', 'Lead Source', 'Source', 'UTM_SOURCE')
+      const roleVal = getVal('role', 'jobtitle', 'title', 'position');
+      const ownerVal = getVal('leadowner', 'owner', 'assignedto', 'salesrep');
+      const stageVal = getVal('pipelinestage', 'stage', 'dealstage', 'status');
+      const sourceVal = getVal('leadsource', 'source', 'utmsource', 'channel') !== '—'
+        ? getVal('leadsource', 'source', 'utmsource', 'channel')
         : (companyVal !== '—' ? companyVal : 'ActiveCampaign Organic');
 
       const totalEmailsSent = (autoData.completed * 2) + (autoData.active > 0 ? 1 : 0) + 1;
