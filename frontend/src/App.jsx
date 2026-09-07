@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Users, Target, RefreshCw, Layers, Mail, 
+  Users, RefreshCw, Layers, Mail, 
   Search, Tag, Briefcase, BarChart2,
   X, Filter, Plus, ArrowUpRight, Building2
 } from 'lucide-react';
@@ -93,14 +93,14 @@ export default function App() {
     return rawContacts.map(c => {
       const tags = (c.rawTags || []).map(t => String(t).toLowerCase());
 
-      // Extract true company name without forcing "Direct Lead"
+      // Extract actual company name from payload without defaulting to "Direct Lead"
       const extractedCompany = c.company && c.company !== 'Direct Lead' 
         ? c.company 
-        : c.orgname || c.organization || '—';
+        : (c.orgname || c.organization || '—');
 
       let detectedType = 'Cold';
       
-      // Match tag conditions
+      // Match tag conditions against defined rules
       const isNotQual = tags.some(t => tagRules['Not Qualified']?.some(r => t.includes(r.toLowerCase())));
       const isMql = tags.some(t => tagRules['MQL']?.some(r => t.includes(r.toLowerCase())));
       const isHot = tags.some(t => tagRules['Hot']?.some(r => t.includes(r.toLowerCase())));
@@ -151,12 +151,13 @@ export default function App() {
     const map = {};
     processedLeads.forEach(l => {
       const role = l.jobTitle && l.jobTitle !== 'Prospect' ? l.jobTitle : 'General / Uncategorized';
-      if (!map[role]) map[role] = { total: 0, hot: 0, mql: 0, warm: 0, cold: 0 };
+      if (!map[role]) map[role] = { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 };
       map[role].total++;
       if (l.leadType === 'Hot') map[role].hot++;
       if (l.leadType === 'MQL') map[role].mql++;
       if (l.leadType === 'Warm') map[role].warm++;
       if (l.leadType === 'Cold') map[role].cold++;
+      if (l.leadType === 'Not Qualified') map[role].notQual++;
     });
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
   }, [processedLeads]);
@@ -291,7 +292,7 @@ export default function App() {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Lead Type Distribution</h3>
+                  <h3 className="text-base font-bold text-slate-900">Lead Type Performance</h3>
                   <p className="text-xs text-slate-500">Categorized automatically via dynamic tag identifiers</p>
                 </div>
               </div>
@@ -302,7 +303,7 @@ export default function App() {
                       <th className="px-6 py-3">Lead Type</th>
                       <th className="px-6 py-3">Total Contacts</th>
                       <th className="px-6 py-3">% of Database</th>
-                      <th className="px-6 py-3">Avg. Open Rate</th>
+                      <th className="px-6 py-3">Classification Mode</th>
                       <th className="px-6 py-3">Status Badge</th>
                     </tr>
                   </thead>
@@ -322,7 +323,7 @@ export default function App() {
                           <td className="px-6 py-4 font-bold text-slate-900">{type}</td>
                           <td className="px-6 py-4 font-semibold">{count}</td>
                           <td className="px-6 py-4">{pct}%</td>
-                          <td className="px-6 py-4">42.5%</td>
+                          <td className="px-6 py-4 text-xs text-slate-500">Auto-assigned via Tag Rules</td>
                           <td className="px-6 py-4">
                             <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${badgeStyles[type] || 'bg-slate-100'}`}>
                               {type}
@@ -353,7 +354,7 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {sourceBreakdown.slice(0, 8).map((item, idx) => (
+                    {sourceBreakdown.slice(0, 10).map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="px-6 py-4 font-medium text-slate-900">{item.source}</td>
                         <td className="px-6 py-4 font-semibold">{item.count}</td>
@@ -403,7 +404,7 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs font-semibold text-slate-600">Pipeline:</span>
+                  <span className="text-xs font-semibold text-slate-600">Pipeline Stage:</span>
                   <select
                     value={filterPipeline}
                     onChange={e => setFilterPipeline(e.target.value)}
@@ -523,22 +524,26 @@ export default function App() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2 text-center">
+                  <div className="grid grid-cols-5 gap-2 text-center">
                     <div className="bg-red-50 p-2 rounded-lg">
-                      <p className="text-xs font-semibold text-red-600">Hot</p>
-                      <p className="text-lg font-bold text-red-700">{item.hot}</p>
-                    </div>
-                    <div className="bg-indigo-50 p-2 rounded-lg">
-                      <p className="text-xs font-semibold text-indigo-600">MQL</p>
-                      <p className="text-lg font-bold text-indigo-700">{item.mql}</p>
+                      <p className="text-[10px] font-semibold text-red-600">Hot</p>
+                      <p className="text-base font-bold text-red-700">{item.hot}</p>
                     </div>
                     <div className="bg-amber-50 p-2 rounded-lg">
-                      <p className="text-xs font-semibold text-amber-600">Warm</p>
-                      <p className="text-lg font-bold text-amber-700">{item.warm}</p>
+                      <p className="text-[10px] font-semibold text-amber-600">Warm</p>
+                      <p className="text-base font-bold text-amber-700">{item.warm}</p>
+                    </div>
+                    <div className="bg-indigo-50 p-2 rounded-lg">
+                      <p className="text-[10px] font-semibold text-indigo-600">MQL</p>
+                      <p className="text-base font-bold text-indigo-700">{item.mql}</p>
                     </div>
                     <div className="bg-blue-50 p-2 rounded-lg">
-                      <p className="text-xs font-semibold text-blue-600">Cold</p>
-                      <p className="text-lg font-bold text-blue-700">{item.cold}</p>
+                      <p className="text-[10px] font-semibold text-blue-600">Cold</p>
+                      <p className="text-base font-bold text-blue-700">{item.cold}</p>
+                    </div>
+                    <div className="bg-slate-100 p-2 rounded-lg">
+                      <p className="text-[10px] font-semibold text-slate-600">Not Qual</p>
+                      <p className="text-base font-bold text-slate-700">{item.notQual}</p>
                     </div>
                   </div>
                 </div>
@@ -692,7 +697,7 @@ export default function App() {
             </div>
 
             <div className="p-6 space-y-4 text-xs">
-              <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Contact Fields (Populated)</h4>
+              <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Populated Contact Fields</h4>
               
               <div className="grid grid-cols-1 gap-3">
                 {Object.entries(selectedLead)
