@@ -17,12 +17,10 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState('Standby');
   const [lastSyncTime, setLastSyncTime] = useState(null);
   
-  // Search & Filters for All Leads
   const [searchQuery, setSearchQuery] = useState('');
   const [filterLeadType, setFilterLeadType] = useState('All');
   const [filterPipeline, setFilterPipeline] = useState('All');
 
-  // Dynamic Tag Rules State for Lead Type Identification
   const [tagRules, setTagRules] = useState({
     MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
     Hot: ['hot', 'demo-requested', 'high-intent', 'fpf-vip'],
@@ -34,8 +32,8 @@ export default function App() {
   const [newTagInput, setNewTagInput] = useState({ stage: 'MQL', tag: '' });
 
   const fetchData = async () => {
-    setSyncStatus('Connected');
-setLastSyncTime(new Date().toLocaleTimeString());
+    setLoading(true);
+    setSyncStatus('Syncing...');
     try {
       const [contactsRes, campaignsRes, automationsRes] = await Promise.allSettled([
         fetch(`${API_PROXY}/api/contacts`),
@@ -59,11 +57,11 @@ setLastSyncTime(new Date().toLocaleTimeString());
       }
 
       const failedRequests = [contactsRes, campaignsRes, automationsRes].filter(
-  result => result.status === 'rejected' || !result.value?.ok
-);
+        result => result.status === 'rejected' || !result.value?.ok
+      );
 
-setSyncStatus(failedRequests.length ? 'Partially connected' : 'Connected');
-setLastSyncTime(new Date().toLocaleTimeString());
+      setSyncStatus(failedRequests.length ? 'Partially connected' : 'Connected');
+      setLastSyncTime(new Date().toLocaleTimeString());
     } catch (err) {
       console.error('Fetch error:', err);
       setSyncStatus('Error');
@@ -76,7 +74,6 @@ setLastSyncTime(new Date().toLocaleTimeString());
     fetchData();
   }, []);
 
-  // Compute Lead Type dynamically based on tag rules
   const processedLeads = useMemo(() => {
     return rawContacts.map(c => {
       const tags = (c.rawTags || []).map(t => String(t).toLowerCase());
@@ -101,7 +98,6 @@ setLastSyncTime(new Date().toLocaleTimeString());
     });
   }, [rawContacts, tagRules]);
 
-  // Lead Type Counts
   const leadTypeCounts = useMemo(() => {
     const counts = { Hot: 0, Warm: 0, MQL: 0, Cold: 0, 'Not Qualified': 0 };
     processedLeads.forEach(l => {
@@ -111,7 +107,6 @@ setLastSyncTime(new Date().toLocaleTimeString());
     return counts;
   }, [processedLeads]);
 
-  // Lead Source Breakdown (%LEAD_SOURCE%)
   const sourceBreakdown = useMemo(() => {
     const map = {};
     processedLeads.forEach(l => {
@@ -124,7 +119,6 @@ setLastSyncTime(new Date().toLocaleTimeString());
     return Object.entries(map).map(([source, data]) => ({ source, ...data }));
   }, [processedLeads]);
 
-  // Roles / Job Titles Breakdown (%ROLE%)
   const roleBreakdown = useMemo(() => {
     const map = {};
     processedLeads.forEach(l => {
@@ -140,7 +134,6 @@ setLastSyncTime(new Date().toLocaleTimeString());
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
   }, [processedLeads]);
 
-  // Unique Pipeline Stages for Filter Dropdown
   const uniquePipelineStages = useMemo(() => {
     const set = new Set();
     processedLeads.forEach(l => {
@@ -149,15 +142,15 @@ setLastSyncTime(new Date().toLocaleTimeString());
     return Array.from(set);
   }, [processedLeads]);
 
-  // Filtered leads for All Leads Tab
   const filteredLeads = useMemo(() => {
     return processedLeads.filter(l => {
+      const search = searchQuery.toLowerCase();
       const matchesSearch = 
-        l.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        l.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        l.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        l.leadOwner?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
+        l.fullName?.toLowerCase().includes(search) ||
+        l.email?.toLowerCase().includes(search) ||
+        l.company?.toLowerCase().includes(search) ||
+        l.leadOwner?.toLowerCase().includes(search) ||
+        l.leadSource?.toLowerCase().includes(search);
 
       const matchesType = filterLeadType === 'All' || l.leadType === filterLeadType;
       const matchesPipeline = filterPipeline === 'All' || l.pipelineStage === filterPipeline;
@@ -166,7 +159,6 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
     });
   }, [processedLeads, searchQuery, filterLeadType, filterPipeline]);
 
-  // Tag Rules Handlers
   const handleAddTagRule = (e) => {
     e.preventDefault();
     if (!newTagInput.tag.trim()) return;
@@ -189,7 +181,6 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
-      {/* Top Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -219,7 +210,6 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
           </div>
         </div>
 
-        {/* Navigation Tabs */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
@@ -248,13 +238,11 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
         </div>
       </header>
 
-      {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            {/* Top Metric Cards */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               {[
                 { label: 'Hot Leads', count: leadTypeCounts.Hot, color: 'text-red-600 bg-red-50 border-red-200' },
@@ -270,7 +258,6 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
               ))}
             </div>
 
-            {/* Lead Type Performance Table */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <div>
@@ -319,7 +306,6 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
               </div>
             </div>
 
-            {/* Lead Source Performance Table (%LEAD_SOURCE%) */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Lead Source Performance</h3>
@@ -349,7 +335,6 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
               </div>
             </div>
 
-            {/* Roles Breakdown Table (%ROLE%) */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Breakdown by Roles & Job Titles (%ROLE%)</h3>
@@ -390,13 +375,12 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
         {/* ALL LEADS TAB */}
         {activeTab === 'leads' && (
           <div className="space-y-4">
-            {/* Filter Bar */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
               <div className="relative flex-1 min-w-[240px]">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by name, email, company, or lead owner..."
+                  placeholder="Search by name, email, company, lead owner, or source..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -437,25 +421,19 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
               </div>
             </div>
 
-            {/* Leads Table */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-slate-600">
                   <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
-                   <th className="px-6 py-3">Contact</th>
-<th className="px-6 py-3">Company</th>
-<th className="px-6 py-3">Lead Owner</th>
-                      <td className="px-6 py-4">
-  <span className="text-xs text-slate-700 font-medium">
-    {lead.leadSource || 'Unspecified'}
-  </span>
-</td>
-<th className="px-6 py-3">Lead Source</th>
-<th className="px-6 py-3">Lead Type</th>
-<th className="px-6 py-3">Pipeline Stage</th>
-<th className="px-6 py-3">Engagement</th>
-<th className="px-6 py-3 text-right">Action</th>
+                      <th className="px-6 py-3">Contact</th>
+                      <th className="px-6 py-3">Company</th>
+                      <th className="px-6 py-3">Lead Owner</th>
+                      <th className="px-6 py-3">Lead Source</th>
+                      <th className="px-6 py-3">Lead Type</th>
+                      <th className="px-6 py-3">Pipeline Stage</th>
+                      <th className="px-6 py-3">Engagement</th>
+                      <th className="px-6 py-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -478,6 +456,12 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
                             <UserCheck className="h-3.5 w-3.5 text-slate-400" />
                             <span>{lead.leadOwner}</span>
                           </div>
+                        </td>
+                        
+                        <td className="px-6 py-4">
+                          <span className="text-xs text-slate-700 font-medium">
+                            {lead.leadSource || 'Unspecified'}
+                          </span>
                         </td>
 
                         <td className="px-6 py-4">
@@ -521,7 +505,7 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
           </div>
         )}
 
-        {/* TAG RULES & IDENTIFIERS TAB */}
+        {/* TAG RULES TAB */}
         {activeTab === 'tag-rules' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-2">
@@ -531,7 +515,6 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
               </p>
             </div>
 
-            {/* Add New Tag Form */}
             <form onSubmit={handleAddTagRule} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex gap-4 items-end">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Select Lead Type</label>
@@ -568,7 +551,6 @@ l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
               </button>
             </form>
 
-            {/* Active Tag Rules List */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {Object.entries(tagRules).map(([stage, tags]) => (
                 <div key={stage} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
