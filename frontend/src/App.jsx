@@ -4,7 +4,7 @@ import {
   Search, Tag, BarChart2,
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
-  CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check
+  CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
@@ -60,7 +60,7 @@ export default function App() {
 
   // Event Selection & Modal States
   const [selectedEventId, setSelectedEventId] = useState('google-ph-aug-2026');
-  const [tagLeadModal, setTagLeadModal] = useState(null); // { title: string, cleanTag: string, isGrowthAudit?: boolean }
+  const [tagLeadModal, setTagLeadModal] = useState(null);
 
   const [tagRules, setTagRules] = useState(DEFAULT_TAG_RULES);
   const [spendSettings, setSpendSettings] = useState(DEFAULT_SPEND);
@@ -128,9 +128,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedRules)
       });
-    } catch (err) {
-      console.error('Failed to save tag rules globally:', err);
-    }
+    } catch (err) { console.error('Failed to save tag rules:', err); }
   };
 
   const saveSpendToBackend = async (updatedSpend) => {
@@ -140,9 +138,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedSpend)
       });
-    } catch (err) {
-      console.error('Failed to save spend settings globally:', err);
-    }
+    } catch (err) { console.error('Failed to save spend settings:', err); }
   };
 
   const processedLeads = useMemo(() => {
@@ -150,7 +146,6 @@ export default function App() {
       const tags = (c.rawTags || []).map(t => String(t).toLowerCase());
 
       let detectedType = 'Cold';
-      
       const isNotQual = tags.some(t => tagRules['Not Qualified']?.some(r => t.includes(r.toLowerCase())));
       const isMql = tags.some(t => tagRules['MQL']?.some(r => t.includes(r.toLowerCase())));
       const isHot = tags.some(t => tagRules['Hot']?.some(r => t.includes(r.toLowerCase())));
@@ -162,10 +157,7 @@ export default function App() {
       else if (isWarm) detectedType = 'Warm';
       else if (c.emailsOpened >= 3) detectedType = 'Warm';
 
-      return {
-        ...c,
-        leadType: detectedType
-      };
+      return { ...c, leadType: detectedType };
     });
   }, [rawContacts, tagRules]);
 
@@ -190,13 +182,9 @@ export default function App() {
       const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
       let sourceCat = 'Internal leads';
 
-      if (cleanTags.some(t => t.includes('reggoogleeventaugust2026'))) {
-        sourceCat = 'Google event Registrants';
-      } else if (cleanTags.some(t => t.includes('googleemaillist'))) {
-        sourceCat = 'Google Partner Referral';
-      } else if (cleanTags.some(t => t.includes('growthreviewcomingsoonform'))) {
-        sourceCat = 'Website Growth Audit Form';
-      }
+      if (cleanTags.some(t => t.includes('reggoogleeventaugust2026'))) sourceCat = 'Google event Registrants';
+      else if (cleanTags.some(t => t.includes('googleemaillist'))) sourceCat = 'Google Partner Referral';
+      else if (cleanTags.some(t => t.includes('growthreviewcomingsoonform'))) sourceCat = 'Website Growth Audit Form';
 
       if (map[sourceCat]) {
         map[sourceCat].count++;
@@ -218,7 +206,6 @@ export default function App() {
     return EVENT_REGISTRY.find(e => e.id === selectedEventId) || EVENT_REGISTRY[0];
   }, [selectedEventId]);
 
-  // Exact Tag Analytics Engine & Nurture Trackers
   const activeEventStats = useMemo(() => {
     let registered = 0;
     let approved = 0;
@@ -254,7 +241,6 @@ export default function App() {
         registered++;
         if (l.leadType === 'MQL') eventMqls++;
 
-        // Strict tag comparisons
         if (cleanTags.includes(appTagClean)) approved++;
         if (cleanTags.includes(attTagClean)) attended++;
         if (cleanTags.includes(noShowTagClean)) approvedNoShow++;
@@ -262,7 +248,6 @@ export default function App() {
         if (cleanTags.includes(rsvpConfClean)) rsvpConfirmed++;
         if (cleanTags.includes(rsvpPlusClean)) rsvpPlusOne++;
 
-        // Growth Audit: Tag OR Email Link Click
         const hasGrowthAuditTag = cleanTags.includes('fpfgrowthaudit');
         const hasGrowthAuditLink = rawTagsLower.some(t => 
           t.includes('future-proof-forum-2026-growth-audit') || 
@@ -270,11 +255,8 @@ export default function App() {
           t.includes('growth-audit')
         );
 
-        if (hasGrowthAuditTag || hasGrowthAuditLink) {
-          growthAuditCount++;
-        }
+        if (hasGrowthAuditTag || hasGrowthAuditLink) growthAuditCount++;
 
-        // Nurture Action 2: Resource Preferences
         if (cleanTags.includes('fpfconsumershift')) resourceCounts['FPF-Consumer Shift']++;
         if (cleanTags.includes('fpfdatatostrategy')) resourceCounts['FPF-Data to Strategy']++;
         if (cleanTags.includes('fpfgrowthblueprint')) resourceCounts['FPF-Growth Blueprint']++;
@@ -287,23 +269,12 @@ export default function App() {
     const costPerRegistrant = registered > 0 ? spend / registered : 0;
 
     return {
-      registered,
-      approved,
-      attended,
-      approvedNoShow,
-      rejected,
-      rsvpConfirmed,
-      rsvpPlusOne,
-      eventMqls,
-      spend,
-      costPerMql,
-      costPerRegistrant,
-      growthAuditCount,
-      resourceCounts
+      registered, approved, attended, approvedNoShow, rejected,
+      rsvpConfirmed, rsvpPlusOne, eventMqls, spend, costPerMql,
+      costPerRegistrant, growthAuditCount, resourceCounts
     };
   }, [processedLeads, spendSettings, activeEvent]);
 
-  // Dynamic Contact Filter for Nurture Tag Modal
   const modalLeads = useMemo(() => {
     if (!tagLeadModal) return [];
 
@@ -351,17 +322,11 @@ export default function App() {
       let cat = 'Others';
       if (l.role && l.role !== 'Prospect' && l.role !== '—') {
         const r = String(l.role).toLowerCase();
-        if (r.includes('founder') || r.includes('owner')) {
-          cat = 'Founder/Owner';
-        } else if (r.includes('chief') || r.includes('c-level') || /\bc[a-z]{1,2}o\b/.test(r)) {
-          cat = 'C-Level';
-        } else if (r.includes('director')) {
-          cat = 'Director';
-        } else if (r.includes('manager')) {
-          cat = 'Manager';
-        }
+        if (r.includes('founder') || r.includes('owner')) cat = 'Founder/Owner';
+        else if (r.includes('chief') || r.includes('c-level') || /\bc[a-z]{1,2}o\b/.test(r)) cat = 'C-Level';
+        else if (r.includes('director')) cat = 'Director';
+        else if (r.includes('manager')) cat = 'Manager';
       }
-
       map[cat].total++;
       if (l.leadType === 'Hot') map[cat].hot++;
       if (l.leadType === 'MQL') map[cat].mql++;
@@ -428,40 +393,28 @@ export default function App() {
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         return cDate >= thirtyDaysAgo;
       }
-
       if (campaignDatePreset === '90d') {
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
         return cDate >= ninetyDaysAgo;
       }
-
       if (campaignDatePreset === 'custom') {
         if (campaignStartDate && cDate < new Date(campaignStartDate)) return false;
         if (campaignEndDate && cDate > new Date(campaignEndDate + 'T23:59:59')) return false;
       }
-
       return true;
     });
   }, [campaigns, campaignDatePreset, campaignStartDate, campaignEndDate]);
 
   const campaignScorecard = useMemo(() => {
-    let uniqueSent = 0;
-    let uniqueOpens = 0;
-    let uniqueClicks = 0;
-
+    let uniqueSent = 0, uniqueOpens = 0, uniqueClicks = 0;
     filteredCampaigns.forEach(c => {
-      const cSent = Number(c.send_amt) || Number(c.unique_send) || 0;
-      const cUniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
-      const cUniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
-
-      uniqueSent += cSent;
-      uniqueOpens += cUniqueOpens;
-      uniqueClicks += cUniqueClicks;
+      uniqueSent += Number(c.send_amt) || Number(c.unique_send) || 0;
+      uniqueOpens += Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
+      uniqueClicks += Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
     });
-
     const openRate = uniqueSent > 0 ? ((uniqueOpens / uniqueSent) * 100).toFixed(1) : '0.0';
     const clickRate = uniqueSent > 0 ? ((uniqueClicks / uniqueSent) * 100).toFixed(1) : '0.0';
-
     return { uniqueSent, uniqueOpens, uniqueClicks, openRate, clickRate };
   }, [filteredCampaigns]);
 
@@ -481,10 +434,8 @@ export default function App() {
         l.email?.toLowerCase().includes(search) ||
         l.company?.toLowerCase().includes(search) ||
         l.leadOwner?.toLowerCase().includes(search);
-
       const matchesType = filterLeadType === 'All' || l.leadType === filterLeadType;
       const matchesPipeline = filterPipeline === 'All' || l.pipelineStage === filterPipeline;
-
       return matchesSearch && matchesType && matchesPipeline;
     });
   }, [processedLeads, searchQuery, filterLeadType, filterPipeline]);
@@ -494,32 +445,20 @@ export default function App() {
     if (!newTagInput.tag.trim()) return;
     const stage = newTagInput.stage;
     const tag = newTagInput.tag.trim().toLowerCase();
-
-    const updatedRules = {
-      ...tagRules,
-      [stage]: [...(tagRules[stage] || []), tag]
-    };
-    
+    const updatedRules = { ...tagRules, [stage]: [...(tagRules[stage] || []), tag] };
     setTagRules(updatedRules);
     saveRulesToBackend(updatedRules);
     setNewTagInput({ ...newTagInput, tag: '' });
   };
 
   const handleRemoveTagRule = (stage, tagToRemove) => {
-    const updatedRules = {
-      ...tagRules,
-      [stage]: tagRules[stage].filter(t => t !== tagToRemove)
-    };
-
+    const updatedRules = { ...tagRules, [stage]: tagRules[stage].filter(t => t !== tagToRemove) };
     setTagRules(updatedRules);
     saveRulesToBackend(updatedRules);
   };
 
   const handleSpendChange = (source, value) => {
-    const updatedSpend = {
-      ...spendSettings,
-      [source]: Number(value) || 0
-    };
+    const updatedSpend = { ...spendSettings, [source]: Number(value) || 0 };
     setSpendSettings(updatedSpend);
     saveSpendToBackend(updatedSpend);
   };
@@ -555,7 +494,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* REQUESTED RE-ARRANGED TAB ORDER */}
+        {/* TABS MENU: RE-ARRANGED ORDER */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
@@ -591,7 +530,6 @@ export default function App() {
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-4">
               <div className="p-4 rounded-xl border text-slate-900 bg-white border-slate-200 shadow-sm col-span-2">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Contacts</p>
@@ -889,7 +827,7 @@ export default function App() {
           </div>
         )}
 
-        {/* EVENTS TAB (RENAMED FROM EVENTS TRACKER) */}
+        {/* EVENTS TAB */}
         {activeTab === 'events' && (
           <div className="space-y-8">
             
@@ -1135,7 +1073,7 @@ export default function App() {
                   </div>
                   <h4 className="font-bold text-slate-900 text-xs leading-snug">Growth Audit Request</h4>
                   <p className="text-2xl font-extrabold text-indigo-950">{activeEventStats.growthAuditCount}</p>
-                  <p className="text-[11px] text-indigo-600 font-medium">Tag or Email Link Click</p>
+                  <p className="text-[11px] text-indigo-600 font-medium truncate">Tag or Email Link Click</p>
                 </button>
 
                 {/* Nurture Action 2: Resource Preferences */}
@@ -1472,7 +1410,7 @@ export default function App() {
       {/* ENHANCED NURTURE RESPONSE DRILL-DOWN MODAL */}
       {tagLeadModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-5xl w-full max-h-[85vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
               <div>
                 <h3 className="font-bold text-slate-900 text-base">{tagLeadModal.title}</h3>
@@ -1487,13 +1425,16 @@ export default function App() {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
-              {/* Delivery Banner Confirmation */}
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 flex items-center space-x-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                <span>
-                  <strong>Email Delivery Confirmation:</strong> All contacts listed below have been automatically sent their requested event materials via email.
-                </span>
-              </div>
+              
+              {/* Conditional Banner based on Growth Audit or Resources */}
+              {!tagLeadModal.isGrowthAudit && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 flex items-center space-x-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                  <span>
+                    <strong>Email Delivery Confirmation:</strong> All contacts listed below have received their requested resources via automated email sequences.
+                  </span>
+                </div>
+              )}
 
               {modalLeads.length === 0 ? (
                 <div className="text-center py-8 text-xs text-slate-400 italic">
@@ -1507,8 +1448,8 @@ export default function App() {
                         <th className="px-4 py-2.5">Contact Name</th>
                         <th className="px-4 py-2.5">Email</th>
                         <th className="px-4 py-2.5">Company</th>
-                        <th className="px-4 py-2.5">Trigger Source / Audit Link Data</th>
-                        <th className="px-4 py-2.5">Resource Status</th>
+                        <th className="px-4 py-2.5">Trigger Source / Action Date</th>
+                        <th className="px-4 py-2.5 text-right">Resource Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
@@ -1516,11 +1457,30 @@ export default function App() {
                         const cleanTags = (lead.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
                         const rawTagsLower = (lead.rawTags || []).map(t => String(t).toLowerCase());
 
-                        const hasTag = cleanTags.includes('fpfgrowthaudit');
-                        const hasLinkClicked = rawTagsLower.some(t => 
+                        const hasAuditTag = cleanTags.includes('fpfgrowthaudit');
+                        const hasAuditLink = rawTagsLower.some(t => 
                           t.includes('future-proof-forum-2026-growth-audit') || 
                           t.includes('growth-audit')
                         );
+
+                        // Calculate Exact Action Date from specific tag/link click
+                        let actionDateStr = null;
+                        if (tagLeadModal.isGrowthAudit) {
+                          const triggerMatch = cleanTags.find(t => t.includes('futureproofforum2026growthaudit') || t === 'fpfgrowthaudit' || t.includes('growthaudit'));
+                          if (triggerMatch && lead.tagDates && lead.tagDates[triggerMatch]) {
+                            const d = new Date(lead.tagDates[triggerMatch]);
+                            actionDateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                          }
+                        } else {
+                          const triggerMatch = tagLeadModal.cleanTag;
+                          if (triggerMatch && lead.tagDates && lead.tagDates[triggerMatch]) {
+                            const d = new Date(lead.tagDates[triggerMatch]);
+                            actionDateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                          }
+                        }
+
+                        // Growth Audit Sent Status Logic
+                        const hasSentTag = cleanTags.includes('fpfgrowthauditsent');
 
                         return (
                           <tr key={lead.id} className="hover:bg-slate-50">
@@ -1533,8 +1493,8 @@ export default function App() {
                                 <div className="space-y-0.5">
                                   <div className="font-semibold text-indigo-700 flex items-center space-x-1">
                                     <span>
-                                      {hasTag && hasLinkClicked ? 'Tag Assigned & Link Clicked' :
-                                       hasLinkClicked ? 'Email Link Clicked' : 'Tag: FPF-Growth-Audit'}
+                                      {hasAuditTag && hasAuditLink ? 'Tag Assigned & Link Clicked' :
+                                       hasAuditLink ? 'Email Link Clicked' : 'Tag: FPF-Growth-Audit'}
                                     </span>
                                   </div>
                                   <a 
@@ -1546,17 +1506,43 @@ export default function App() {
                                     <span>https://www.fenyx.digital/future-proof-forum-2026-growth-audit</span>
                                     <ExternalLink className="h-2.5 w-2.5 inline" />
                                   </a>
+                                  {actionDateStr && (
+                                    <div className="text-[10px] text-slate-500 font-medium mt-1">
+                                      Action Logged: {actionDateStr}
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
-                                <span className="font-mono text-slate-500">{tagLeadModal.title}</span>
+                                <div className="space-y-0.5">
+                                  <span className="font-mono text-slate-500">{tagLeadModal.title}</span>
+                                  {actionDateStr && (
+                                    <div className="text-[10px] text-slate-400 font-medium mt-1">
+                                      Requested on: {actionDateStr}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </td>
 
-                            <td className="px-4 py-2.5">
-                              <span className="inline-flex items-center space-x-1 bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                <Check className="h-3 w-3" />
-                                <span>Resources Received via Email</span>
-                              </span>
+                            <td className="px-4 py-2.5 text-right">
+                              {tagLeadModal.isGrowthAudit ? (
+                                hasSentTag ? (
+                                  <span className="inline-flex items-center space-x-1 bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full text-[10px] font-bold">
+                                    <Check className="h-3 w-3" />
+                                    <span>Resource Sent</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center space-x-1 bg-amber-100 text-amber-800 px-2 py-1 rounded-full text-[10px] font-bold">
+                                    <AlertCircle className="h-3 w-3" />
+                                    <span>Not yet sent</span>
+                                  </span>
+                                )
+                              ) : (
+                                <span className="inline-flex items-center space-x-1 bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full text-[10px] font-bold">
+                                  <Check className="h-3 w-3" />
+                                  <span>Received via Email</span>
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );
