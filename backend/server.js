@@ -29,18 +29,18 @@ const configSchema = new mongoose.Schema({
 const Config = mongoose.models.Config || mongoose.model('Config', configSchema);
 
 const DEFAULT_TAG_RULES = {
-  MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
-  Hot: ['hot', 'demo-requested', 'high-intent', 'fpf-vip'],
-  Warm: ['warm', 'engaged', 'newsletter-click'],
-  Cold: ['cold', 'unengaged', 'prospect'],
-  'Not Qualified': ['rejected', 'unqualified', 'archived', 'no-fit', 'spam']
+  MQL: ['FPF-Approved', 'FPF-Waitlisted'],
+  Hot: [''],
+  Warm: ['Growth Review - Coming Soon Form'],
+  Cold: [''],
+  'Not Qualified': ['FPF-Rejected']
 };
 
 const DEFAULT_SPEND_SETTINGS = {
-  'Google event Registrants': 1500,
-  'Google Partner Referral': 800,
-  'Website Growth Audit Form': 500,
-  'Internal leads': 200
+  'Google event Registrants': 0,
+  'Google Partner Referral': 0,
+  'Website Growth Audit Form': 0,
+  'Internal leads': 0
 };
 
 // Global memory cache to prevent cold-start resets
