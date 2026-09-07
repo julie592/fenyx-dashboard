@@ -72,28 +72,13 @@ export default function App() {
     fetchData();
   }, []);
 
-  // Compute Lead Type dynamically & extract AC custom fields
+  // Compute Lead Type dynamically based on tag rules
   const processedLeads = useMemo(() => {
     return rawContacts.map(c => {
       const tags = (c.rawTags || []).map(t => String(t).toLowerCase());
 
-      // Helper function to pull specific ActiveCampaign tag/custom fields
-      const getField = (lead, keys) => {
-        for (const k of keys) {
-          if (lead[k] && lead[k] !== '—' && lead[k] !== 'Direct Lead') return lead[k];
-        }
-        return '—';
-      };
-
-      // Mapped directly to ActiveCampaign custom fields (%COMPANY%, %ROLE%, %PIPELINE_STAGE%, %LEAD_OWNER%)
-      const company = getField(c, ['%COMPANY%', 'company', 'orgname', 'organization', 'Company']);
-      const role = getField(c, ['%ROLE%', 'jobTitle', 'role', 'Role', 'title']);
-      const pipelineStage = getField(c, ['%PIPELINE_STAGE%', 'pipelineStage', 'pipeline_stage', 'Pipeline Stage']);
-      const leadOwner = getField(c, ['%LEAD_OWNER%', 'leadOwner', 'lead_owner', 'Lead Owner', 'owner']);
-
       let detectedType = 'Cold';
       
-      // Match tag conditions against defined rules
       const isNotQual = tags.some(t => tagRules['Not Qualified']?.some(r => t.includes(r.toLowerCase())));
       const isMql = tags.some(t => tagRules['MQL']?.some(r => t.includes(r.toLowerCase())));
       const isHot = tags.some(t => tagRules['Hot']?.some(r => t.includes(r.toLowerCase())));
@@ -107,10 +92,6 @@ export default function App() {
 
       return {
         ...c,
-        company: company,
-        role: role,
-        pipelineStage: pipelineStage,
-        leadOwner: leadOwner,
         leadType: detectedType
       };
     });
@@ -126,11 +107,11 @@ export default function App() {
     return counts;
   }, [processedLeads]);
 
-  // Lead Source Breakdown
+  // Lead Source Breakdown (%LEAD_SOURCE%)
   const sourceBreakdown = useMemo(() => {
     const map = {};
     processedLeads.forEach(l => {
-      const src = l.company && l.company !== '—' ? l.company : 'ActiveCampaign Organic';
+      const src = l.leadSource && l.leadSource !== '—' ? l.leadSource : 'ActiveCampaign Organic';
       if (!map[src]) map[src] = { count: 0, mqls: 0, hot: 0 };
       map[src].count++;
       if (l.leadType === 'MQL') map[src].mqls++;
@@ -139,7 +120,7 @@ export default function App() {
     return Object.entries(map).map(([source, data]) => ({ source, ...data }));
   }, [processedLeads]);
 
-  // Roles / Job Titles Breakdown
+  // Roles / Job Titles Breakdown (%ROLE%)
   const roleBreakdown = useMemo(() => {
     const map = {};
     processedLeads.forEach(l => {
@@ -155,7 +136,7 @@ export default function App() {
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
   }, [processedLeads]);
 
-  // Unique Pipeline Options for Filter Dropdown
+  // Unique Pipeline Stages for Filter Dropdown
   const uniquePipelineStages = useMemo(() => {
     const set = new Set();
     processedLeads.forEach(l => {
@@ -207,7 +188,6 @@ export default function App() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            {/* Custom Fenyx Logo Typography Matching Screenshot */}
             <span className="text-3xl font-light tracking-tight text-slate-900 font-sans">Fenyx</span>
             <div className="h-4 w-px bg-slate-200 mx-2" />
             <div>
@@ -334,17 +314,17 @@ export default function App() {
               </div>
             </div>
 
-            {/* Lead Source Performance Table */}
+            {/* Lead Source Performance Table (%LEAD_SOURCE%) */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Lead Source Performance</h3>
-                <p className="text-xs text-slate-500">Volume and lead quality segmented by channel source</p>
+                <p className="text-xs text-slate-500">Volume and lead quality segmented by %LEAD_SOURCE%</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-slate-600">
                   <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
-                      <th className="px-6 py-3">Source / Organization (%COMPANY%)</th>
+                      <th className="px-6 py-3">Lead Source (%LEAD_SOURCE%)</th>
                       <th className="px-6 py-3">Total Leads</th>
                       <th className="px-6 py-3">Hot Leads</th>
                       <th className="px-6 py-3">MQLs</th>
@@ -364,7 +344,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Roles Breakdown Table (Moved into Overview) */}
+            {/* Roles Breakdown Table (%ROLE%) */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Breakdown by Roles & Job Titles (%ROLE%)</h3>
@@ -374,7 +354,7 @@ export default function App() {
                 <table className="w-full text-left text-sm text-slate-600">
                   <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
-                      <th className="px-6 py-3">Role / Persona</th>
+                      <th className="px-6 py-3">Role / Persona (%ROLE%)</th>
                       <th className="px-6 py-3">Total Leads</th>
                       <th className="px-6 py-3">Hot</th>
                       <th className="px-6 py-3">Warm</th>
@@ -464,7 +444,6 @@ export default function App() {
                       <th className="px-6 py-3">Lead Type</th>
                       <th className="px-6 py-3">Pipeline Stage (%PIPELINE_STAGE%)</th>
                       <th className="px-6 py-3">Engagement</th>
-                      <th className="px-6 py-3">Event Status</th>
                       <th className="px-6 py-3 text-right">Action</th>
                     </tr>
                   </thead>
@@ -511,16 +490,6 @@ export default function App() {
                         <td className="px-6 py-4">
                           <div className="text-xs font-semibold text-slate-800">{lead.emailsSent || 1} Sent</div>
                           <div className="text-xs text-slate-500">{lead.emailsOpened || 0} Opens | {lead.linksClicked || 0} Clicks</div>
-                        </td>
-
-                        <td className="px-6 py-4">
-                          {lead.approvalStatus ? (
-                            <span className="px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-800 rounded">
-                              {lead.approvalStatus}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-400">—</span>
-                          )}
                         </td>
 
                         <td className="px-6 py-4 text-right">
@@ -668,7 +637,7 @@ export default function App() {
 
       </main>
 
-      {/* VIEW DETAILS MODAL (Displays only non-blank fields) */}
+      {/* VIEW DETAILS MODAL */}
       {selectedLead && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full max-h-[85vh] overflow-y-auto">
