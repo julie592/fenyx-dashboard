@@ -1,24 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, RefreshCw, Layers, Mail, 
-  Search, Tag, Briefcase, BarChart2,
-  X, Filter, Plus, ArrowUpRight, Building2
+  Search, Tag, BarChart2,
+  X, Filter, Plus, ArrowUpRight, Building2, UserCheck
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
-
-const PIPELINE_OPTIONS = [
-  '—',
-  'In contact',
-  'Follow up 1',
-  'Follow up 2',
-  'Discovery Call booked',
-  'Proposal Sent',
-  'Won',
-  'Lost',
-  'No response',
-  'Outreach Sent'
-];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -45,9 +32,6 @@ export default function App() {
   });
 
   const [newTagInput, setNewTagInput] = useState({ stage: 'MQL', tag: '' });
-
-  // Custom pipeline assignments override map (leadId -> pipelineStage)
-  const [pipelineOverrides, setPipelineOverrides] = useState({});
 
   const fetchData = async () => {
     setLoading(true);
@@ -88,15 +72,24 @@ export default function App() {
     fetchData();
   }, []);
 
-  // Compute Lead Type dynamically & extract true company name
+  // Compute Lead Type dynamically & extract AC custom fields
   const processedLeads = useMemo(() => {
     return rawContacts.map(c => {
       const tags = (c.rawTags || []).map(t => String(t).toLowerCase());
 
-      // Extract actual company name from payload without defaulting to "Direct Lead"
-      const extractedCompany = c.company && c.company !== 'Direct Lead' 
-        ? c.company 
-        : (c.orgname || c.organization || '—');
+      // Helper function to pull specific ActiveCampaign tag/custom fields
+      const getField = (lead, keys) => {
+        for (const k of keys) {
+          if (lead[k] && lead[k] !== '—' && lead[k] !== 'Direct Lead') return lead[k];
+        }
+        return '—';
+      };
+
+      // Mapped directly to ActiveCampaign custom fields (%COMPANY%, %ROLE%, %PIPELINE_STAGE%, %LEAD_OWNER%)
+      const company = getField(c, ['%COMPANY%', 'company', 'orgname', 'organization', 'Company']);
+      const role = getField(c, ['%ROLE%', 'jobTitle', 'role', 'Role', 'title']);
+      const pipelineStage = getField(c, ['%PIPELINE_STAGE%', 'pipelineStage', 'pipeline_stage', 'Pipeline Stage']);
+      const leadOwner = getField(c, ['%LEAD_OWNER%', 'leadOwner', 'lead_owner', 'Lead Owner', 'owner']);
 
       let detectedType = 'Cold';
       
@@ -112,16 +105,16 @@ export default function App() {
       else if (isWarm) detectedType = 'Warm';
       else if (c.emailsOpened >= 3) detectedType = 'Warm';
 
-      const pipelineStage = pipelineOverrides[c.id] || c.pipelineStage || '—';
-
       return {
         ...c,
-        company: extractedCompany,
-        leadType: detectedType,
-        pipelineStage: pipelineStage
+        company: company,
+        role: role,
+        pipelineStage: pipelineStage,
+        leadOwner: leadOwner,
+        leadType: detectedType
       };
     });
-  }, [rawContacts, tagRules, pipelineOverrides]);
+  }, [rawContacts, tagRules]);
 
   // Lead Type Counts
   const leadTypeCounts = useMemo(() => {
@@ -150,16 +143,25 @@ export default function App() {
   const roleBreakdown = useMemo(() => {
     const map = {};
     processedLeads.forEach(l => {
-      const role = l.jobTitle && l.jobTitle !== 'Prospect' ? l.jobTitle : 'General / Uncategorized';
-      if (!map[role]) map[role] = { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 };
-      map[role].total++;
-      if (l.leadType === 'Hot') map[role].hot++;
-      if (l.leadType === 'MQL') map[role].mql++;
-      if (l.leadType === 'Warm') map[role].warm++;
-      if (l.leadType === 'Cold') map[role].cold++;
-      if (l.leadType === 'Not Qualified') map[role].notQual++;
+      const roleName = l.role && l.role !== 'Prospect' && l.role !== '—' ? l.role : 'General / Uncategorized';
+      if (!map[roleName]) map[roleName] = { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 };
+      map[roleName].total++;
+      if (l.leadType === 'Hot') map[roleName].hot++;
+      if (l.leadType === 'MQL') map[roleName].mql++;
+      if (l.leadType === 'Warm') map[roleName].warm++;
+      if (l.leadType === 'Cold') map[roleName].cold++;
+      if (l.leadType === 'Not Qualified') map[roleName].notQual++;
     });
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
+  }, [processedLeads]);
+
+  // Unique Pipeline Options for Filter Dropdown
+  const uniquePipelineStages = useMemo(() => {
+    const set = new Set();
+    processedLeads.forEach(l => {
+      if (l.pipelineStage && l.pipelineStage !== '—') set.add(l.pipelineStage);
+    });
+    return Array.from(set);
   }, [processedLeads]);
 
   // Filtered leads for All Leads Tab
@@ -168,7 +170,8 @@ export default function App() {
       const matchesSearch = 
         l.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         l.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        l.company?.toLowerCase().includes(searchQuery.toLowerCase());
+        l.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        l.leadOwner?.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesType = filterLeadType === 'All' || l.leadType === filterLeadType;
       const matchesPipeline = filterPipeline === 'All' || l.pipelineStage === filterPipeline;
@@ -177,7 +180,7 @@ export default function App() {
     });
   }, [processedLeads, searchQuery, filterLeadType, filterPipeline]);
 
-  // Tag Rules Handler
+  // Tag Rules Handlers
   const handleAddTagRule = (e) => {
     e.preventDefault();
     if (!newTagInput.tag.trim()) return;
@@ -198,23 +201,18 @@ export default function App() {
     }));
   };
 
-  const handlePipelineChange = (leadId, newStage) => {
-    setPipelineOverrides(prev => ({
-      ...prev,
-      [leadId]: newStage
-    }));
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       {/* Top Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="bg-indigo-600 text-white p-2 rounded-lg font-bold tracking-wider">FENYX</div>
+            {/* Custom Fenyx Logo Typography Matching Screenshot */}
+            <span className="text-3xl font-light tracking-tight text-slate-900 font-sans">Fenyx</span>
+            <div className="h-4 w-px bg-slate-200 mx-2" />
             <div>
-              <h1 className="text-lg font-bold text-slate-900 leading-tight">Lead Intelligence & Marketing Dashboard</h1>
-              <p className="text-xs text-slate-500">Live ActiveCampaign API Integration</p>
+              <h1 className="text-sm font-bold text-slate-900 leading-tight">Marketing & Lead Intelligence</h1>
+              <p className="text-[11px] text-slate-500">Live ActiveCampaign API Integration</p>
             </div>
           </div>
 
@@ -228,7 +226,7 @@ export default function App() {
             <button
               onClick={fetchData}
               disabled={loading}
-              className="inline-flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50 shadow-sm"
+              className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50 shadow-sm"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span>{loading ? 'Syncing...' : 'Sync Now'}</span>
@@ -241,7 +239,6 @@ export default function App() {
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
             { id: 'leads', label: `All Leads (${processedLeads.length})`, icon: Users },
-            { id: 'roles', label: 'Roles Breakdown', icon: Briefcase },
             { id: 'tag-rules', label: 'Tag Rules & Identifiers', icon: Tag },
             { id: 'campaigns', label: `Campaigns (${campaigns.length})`, icon: Mail },
             { id: 'automations', label: `Automations (${automations.length})`, icon: Layers }
@@ -254,7 +251,7 @@ export default function App() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-2 py-3 border-b-2 transition ${
                   active 
-                    ? 'border-indigo-600 text-indigo-600 font-semibold' 
+                    ? 'border-slate-900 text-slate-900 font-semibold' 
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -347,7 +344,7 @@ export default function App() {
                 <table className="w-full text-left text-sm text-slate-600">
                   <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
-                      <th className="px-6 py-3">Source / Organization</th>
+                      <th className="px-6 py-3">Source / Organization (%COMPANY%)</th>
                       <th className="px-6 py-3">Total Leads</th>
                       <th className="px-6 py-3">Hot Leads</th>
                       <th className="px-6 py-3">MQLs</th>
@@ -366,6 +363,42 @@ export default function App() {
                 </table>
               </div>
             </div>
+
+            {/* Roles Breakdown Table (Moved into Overview) */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200">
+                <h3 className="text-base font-bold text-slate-900">Breakdown by Roles & Job Titles (%ROLE%)</h3>
+                <p className="text-xs text-slate-500">Persona distribution and lead readiness per job function</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3">Role / Persona</th>
+                      <th className="px-6 py-3">Total Leads</th>
+                      <th className="px-6 py-3">Hot</th>
+                      <th className="px-6 py-3">Warm</th>
+                      <th className="px-6 py-3">MQL</th>
+                      <th className="px-6 py-3">Cold</th>
+                      <th className="px-6 py-3">Not Qual</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {roleBreakdown.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-6 py-4 font-bold text-slate-900">{item.role}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-800">{item.total}</td>
+                        <td className="px-6 py-4 text-red-600 font-bold">{item.hot}</td>
+                        <td className="px-6 py-4 text-amber-600 font-bold">{item.warm}</td>
+                        <td className="px-6 py-4 text-indigo-600 font-bold">{item.mql}</td>
+                        <td className="px-6 py-4 text-blue-600 font-bold">{item.cold}</td>
+                        <td className="px-6 py-4 text-slate-500">{item.notQual}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
@@ -378,7 +411,7 @@ export default function App() {
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by name, email, or company..."
+                  placeholder="Search by name, email, company, or lead owner..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -411,7 +444,7 @@ export default function App() {
                     className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                   >
                     <option value="All">All Stages</option>
-                    {PIPELINE_OPTIONS.map(opt => (
+                    {uniquePipelineStages.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
@@ -426,9 +459,10 @@ export default function App() {
                   <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-3">Contact</th>
-                      <th className="px-6 py-3">Company</th>
+                      <th className="px-6 py-3">Company (%COMPANY%)</th>
+                      <th className="px-6 py-3">Lead Owner (%LEAD_OWNER%)</th>
                       <th className="px-6 py-3">Lead Type</th>
-                      <th className="px-6 py-3">Pipeline Stage</th>
+                      <th className="px-6 py-3">Pipeline Stage (%PIPELINE_STAGE%)</th>
                       <th className="px-6 py-3">Engagement</th>
                       <th className="px-6 py-3">Event Status</th>
                       <th className="px-6 py-3 text-right">Action</th>
@@ -450,6 +484,13 @@ export default function App() {
                         </td>
 
                         <td className="px-6 py-4">
+                          <div className="flex items-center space-x-1.5 text-xs text-slate-700 font-medium">
+                            <UserCheck className="h-3.5 w-3.5 text-slate-400" />
+                            <span>{lead.leadOwner}</span>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
                           <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
                             lead.leadType === 'Hot' ? 'bg-red-100 text-red-800' :
                             lead.leadType === 'Warm' ? 'bg-amber-100 text-amber-800' :
@@ -462,15 +503,9 @@ export default function App() {
                         </td>
 
                         <td className="px-6 py-4">
-                          <select
-                            value={lead.pipelineStage}
-                            onChange={e => handlePipelineChange(lead.id, e.target.value)}
-                            className="text-xs border border-slate-300 rounded px-2 py-1 bg-white focus:ring-1 focus:ring-indigo-500"
-                          >
-                            {PIPELINE_OPTIONS.map(opt => (
-                              <option key={opt} value={opt}>{opt}</option>
-                            ))}
-                          </select>
+                          <span className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-md border border-slate-200">
+                            {lead.pipelineStage}
+                          </span>
                         </td>
 
                         <td className="px-6 py-4">
@@ -502,52 +537,6 @@ export default function App() {
                   </tbody>
                 </table>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* ROLES BREAKDOWN TAB */}
-        {activeTab === 'roles' && (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="text-base font-bold text-slate-900">Breakdown by Job Role / Persona</h3>
-              <p className="text-xs text-slate-500 mt-1">Lead distribution and engagement readiness across target job titles</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {roleBreakdown.map((item, idx) => (
-                <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h4 className="font-bold text-slate-900 text-base">{item.role}</h4>
-                    <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full">
-                      {item.total} Total Leads
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-5 gap-2 text-center">
-                    <div className="bg-red-50 p-2 rounded-lg">
-                      <p className="text-[10px] font-semibold text-red-600">Hot</p>
-                      <p className="text-base font-bold text-red-700">{item.hot}</p>
-                    </div>
-                    <div className="bg-amber-50 p-2 rounded-lg">
-                      <p className="text-[10px] font-semibold text-amber-600">Warm</p>
-                      <p className="text-base font-bold text-amber-700">{item.warm}</p>
-                    </div>
-                    <div className="bg-indigo-50 p-2 rounded-lg">
-                      <p className="text-[10px] font-semibold text-indigo-600">MQL</p>
-                      <p className="text-base font-bold text-indigo-700">{item.mql}</p>
-                    </div>
-                    <div className="bg-blue-50 p-2 rounded-lg">
-                      <p className="text-[10px] font-semibold text-blue-600">Cold</p>
-                      <p className="text-base font-bold text-blue-700">{item.cold}</p>
-                    </div>
-                    <div className="bg-slate-100 p-2 rounded-lg">
-                      <p className="text-[10px] font-semibold text-slate-600">Not Qual</p>
-                      <p className="text-base font-bold text-slate-700">{item.notQual}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )}
@@ -592,7 +581,7 @@ export default function App() {
 
               <button
                 type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg inline-flex items-center space-x-1 transition"
+                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-lg inline-flex items-center space-x-1 transition"
               >
                 <Plus className="h-4 w-4" />
                 <span>Add Rule</span>
@@ -697,7 +686,7 @@ export default function App() {
             </div>
 
             <div className="p-6 space-y-4 text-xs">
-              <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Populated Contact Fields</h4>
+              <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Contact Fields (Populated)</h4>
               
               <div className="grid grid-cols-1 gap-3">
                 {Object.entries(selectedLead)
