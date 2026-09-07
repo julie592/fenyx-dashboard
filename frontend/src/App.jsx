@@ -5,24 +5,24 @@ import {
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
   CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
-  MessageSquare, Bot, ChevronDown, Minimize2
+  MessageSquare, Bot, Minimize2
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
 
 const DEFAULT_TAG_RULES = {
-  MQL: ['FPF-Approved','FPF-Waitlisted],
-  Hot: [''],
-  Warm: ['Growth Review - Coming Soon Form'],
-  Cold: [''],
-  'Not Qualified': ['FPF-Rejected']
+  MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
+  Hot: ['hot', 'demo-requested', 'high-intent', 'fpf-vip'],
+  Warm: ['warm', 'engaged', 'newsletter-click'],
+  Cold: ['cold', 'unengaged', 'prospect'],
+  'Not Qualified': ['rejected', 'unqualified', 'archived', 'no-fit', 'spam']
 };
 
 const DEFAULT_SPEND = {
-  'Google event Registrants': 0,
-  'Google Partner Referral': 0,
-  'Website Growth Audit Form': 0,
-  'Internal leads': 0
+  'Google event Registrants': 1500,
+  'Google Partner Referral': 800,
+  'Website Growth Audit Form': 500,
+  'Internal leads': 200
 };
 
 const EVENT_REGISTRY = [
@@ -69,7 +69,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([
     {
       sender: 'gemini',
-      text: 'Hello! I am your Fenyx AI Intelligence Assistant. Ask me anything about your contacts, conversion rates, event metrics, or spend efficiency!'
+      text: 'Hello! I am your Fenyx AI Assistant. Ask me about contacts, conversions, events, or spend metrics!'
     }
   ]);
 
@@ -218,15 +218,8 @@ export default function App() {
   }, [selectedEventId]);
 
   const activeEventStats = useMemo(() => {
-    let registered = 0;
-    let approved = 0;
-    let attended = 0;
-    let approvedNoShow = 0;
-    let rejected = 0;
-    let rsvpConfirmed = 0;
-    let rsvpPlusOne = 0;
-    let eventMqls = 0;
-    let growthAuditCount = 0;
+    let registered = 0, approved = 0, attended = 0, approvedNoShow = 0;
+    let rejected = 0, rsvpConfirmed = 0, rsvpPlusOne = 0, eventMqls = 0, growthAuditCount = 0;
 
     const resourceCounts = {
       'FPF-Consumer Shift': 0,
@@ -381,7 +374,6 @@ export default function App() {
     return actions.slice(0, 7);
   }, [processedLeads]);
 
-  // Context-Aware Chatbot Response Engine
   const handleSendMessage = (textToSend) => {
     const query = (textToSend || chatInput).trim();
     if (!query) return;
@@ -489,10 +481,21 @@ export default function App() {
     saveRulesToBackend(updatedRules);
   };
 
-  const handleSpendChange = (source, value) => {
-    const updatedSpend = { ...spendSettings, [source]: Number(value) || 0 };
-    setSpendSettings(updatedSpend);
-    saveSpendToBackend(updatedSpend);
+  // Local state update while typing
+  const handleSpendInputChange = (source, value) => {
+    setSpendSettings(prev => ({
+      ...prev,
+      [source]: value
+    }));
+  };
+
+  // Persist to MongoDB on blur
+  const handleSpendInputBlur = () => {
+    const cleanSpend = {};
+    Object.keys(spendSettings).forEach(k => {
+      cleanSpend[k] = Number(spendSettings[k]) || 0;
+    });
+    saveSpendToBackend(cleanSpend);
   };
 
   return (
@@ -526,7 +529,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* RE-ARRANGED TAB NAVIGATION */}
+        {/* TABS MENU */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
@@ -559,7 +562,7 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {/* OVERVIEW TAB (REMOVED STATIC GEMINI BANNER) */}
+        {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-4">
@@ -837,8 +840,6 @@ export default function App() {
         {/* EVENTS TAB */}
         {activeTab === 'events' && (
           <div className="space-y-8">
-            
-            {/* Header / Selector */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-wrap items-center justify-between gap-4">
               <div className="space-y-1.5 flex-1 min-w-[280px]">
                 <div className="flex items-center space-x-2">
@@ -874,7 +875,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Event Financial & Top Metric Scorecards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
               <div className="p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Registered</p>
@@ -917,9 +917,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Registrant Status Breakdown & RSVP Visualizer */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden space-y-0">
                 <div className="px-6 py-4 border-b border-slate-200">
                   <h3 className="text-base font-bold text-slate-900">Registrant Qualification Breakdown</h3>
@@ -1054,7 +1052,6 @@ export default function App() {
 
             </div>
 
-            {/* NURTURE RESPONSES & RESOURCE PREFERENCES SECTION */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
               <div className="border-b border-slate-100 pb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -1065,7 +1062,6 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                {/* Nurture Action 1: Growth Audit Request */}
                 <button
                   onClick={() => setTagLeadModal({
                     title: 'Growth Audit Requests (Attendees)',
@@ -1083,7 +1079,6 @@ export default function App() {
                   <p className="text-[11px] text-indigo-600 font-medium truncate">Tag or Email Link Click</p>
                 </button>
 
-                {/* Nurture Action 2: Resource Preferences */}
                 {Object.entries(activeEventStats.resourceCounts).map(([catName, count]) => {
                   const tagMap = {
                     'FPF-Consumer Shift': 'fpfconsumershift',
@@ -1322,11 +1317,12 @@ export default function App() {
                         min="0"
                         placeholder="0"
                         value={spendSettings[source] ?? ''}
-                        onChange={e => handleSpendChange(source, e.target.value)}
+                        onChange={e => handleSpendInputChange(source, e.target.value)}
+                        onBlur={handleSpendInputBlur}
                         className="w-full pl-8 pr-4 py-2 text-sm font-semibold border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                       />
                     </div>
-                    <p className="text-[11px] text-slate-400">Pushes directly to global backend configuration</p>
+                    <p className="text-[11px] text-slate-400">Saved automatically on field blur</p>
                   </div>
                 ))}
               </div>
@@ -1428,7 +1424,6 @@ export default function App() {
       {isChatOpen && (
         <div className="fixed bottom-6 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-[520px]">
           
-          {/* Drawer Header */}
           <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 flex items-center justify-between border-b border-indigo-900/50">
             <div className="flex items-center space-x-2.5">
               <div className="bg-indigo-500/20 p-2 rounded-lg border border-indigo-400/30">
@@ -1447,7 +1442,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Chat Messages */}
           <div className="p-4 flex-1 overflow-y-auto space-y-3 bg-slate-50/50 text-xs">
             {chatMessages.map((msg, i) => (
               <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -1462,29 +1456,27 @@ export default function App() {
             ))}
           </div>
 
-          {/* Recommended Questions Suggestions Bar */}
           <div className="px-3 py-2 bg-slate-100/80 border-t border-slate-200/60 overflow-x-auto whitespace-nowrap flex space-x-2 text-[10px]">
             <button
               onClick={() => handleSendMessage("How many google event registrants attended?")}
-              className="bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-2.5 py-1 rounded-full font-medium transition shadow-2xs"
+              className="bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-2.5 py-1 rounded-full font-medium transition shadow-2xs cursor-pointer"
             >
               How many google event registrants attended?
             </button>
             <button
               onClick={() => handleSendMessage("What is our overall Cost per MQL?")}
-              className="bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-2.5 py-1 rounded-full font-medium transition shadow-2xs"
+              className="bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-2.5 py-1 rounded-full font-medium transition shadow-2xs cursor-pointer"
             >
               Cost per MQL?
             </button>
             <button
               onClick={() => handleSendMessage("Which role category has the most leads?")}
-              className="bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-2.5 py-1 rounded-full font-medium transition shadow-2xs"
+              className="bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-2.5 py-1 rounded-full font-medium transition shadow-2xs cursor-pointer"
             >
               Top Role?
             </button>
           </div>
 
-          {/* Chat Input */}
           <form 
             onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
             className="p-3 bg-white border-t border-slate-200 flex space-x-2 items-center"
@@ -1498,7 +1490,7 @@ export default function App() {
             />
             <button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg transition"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg transition cursor-pointer"
             >
               <Send className="h-3.5 w-3.5" />
             </button>
@@ -1525,7 +1517,6 @@ export default function App() {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
-              
               {!tagLeadModal.isGrowthAudit && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 flex items-center space-x-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
