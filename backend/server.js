@@ -1,6 +1,8 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -18,6 +20,43 @@ const acApi = axios.create({
 
 const cleanKey = (value = '') =>
   String(value).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// --- GLOBAL TAG RULES STORAGE ---
+const RULES_FILE = path.join(__dirname, 'tagRules.json');
+const DEFAULT_TAG_RULES = {
+  MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
+  Hot: ['hot', 'demo-requested', 'high-intent', 'fpf-vip'],
+  Warm: ['warm', 'engaged', 'newsletter-click'],
+  Cold: ['cold', 'unengaged', 'prospect'],
+  'Not Qualified': ['rejected', 'unqualified', 'archived', 'no-fit', 'spam']
+};
+
+function getTagRules() {
+  try {
+    if (fs.existsSync(RULES_FILE)) {
+      return JSON.parse(fs.readFileSync(RULES_FILE, 'utf8'));
+    }
+  } catch (err) {
+    console.error("Error reading tag rules file:", err);
+  }
+  return DEFAULT_TAG_RULES;
+}
+
+app.get('/api/tag-rules', (req, res) => {
+  res.json(getTagRules());
+});
+
+app.post('/api/tag-rules', (req, res) => {
+  try {
+    const newRules = req.body;
+    fs.writeFileSync(RULES_FILE, JSON.stringify(newRules, null, 2));
+    res.json({ success: true, rules: newRules });
+  } catch (err) {
+    console.error("Error saving tag rules:", err);
+    res.status(500).json({ error: "Failed to save rules" });
+  }
+});
+// --------------------------------
 
 async function getAllPages(path, collectionKey) {
   const records = [];
