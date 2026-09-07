@@ -107,9 +107,8 @@ export default function App() {
     return counts;
   }, [processedLeads]);
 
-  // Updated Lead Source Breakdown using specific Tag matching logic
+  // Bulletproof Lead Source Breakdown using sanitized Tag matching logic
   const sourceBreakdown = useMemo(() => {
-    // Pre-seed the 4 required buckets
     const map = {
       'Google event Registrants': { count: 0, hot: 0, mqls: 0 },
       'Google Partner Referral': { count: 0, hot: 0, mqls: 0 },
@@ -118,20 +117,23 @@ export default function App() {
     };
 
     processedLeads.forEach(l => {
-      const tags = (l.rawTags || []).map(t => String(t).toLowerCase());
-      let sourceCat = 'Internal leads'; // Default fallback
+      // Strip spaces, hyphens, and special characters from raw tags to prevent API formatting mismatches
+      const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
+      let sourceCat = 'Internal leads';
 
-      if (tags.some(t => t.includes('reg-google-event-august-2026'))) {
+      if (cleanTags.some(t => t.includes('reggoogleeventaugust2026'))) {
         sourceCat = 'Google event Registrants';
-      } else if (tags.some(t => t.includes('google-email-list'))) {
+      } else if (cleanTags.some(t => t.includes('googleemaillist'))) {
         sourceCat = 'Google Partner Referral';
-      } else if (tags.some(t => t.includes('growth review - coming soon form'))) {
+      } else if (cleanTags.some(t => t.includes('growthreviewcomingsoonform'))) {
         sourceCat = 'Website Growth Audit Form';
       }
 
-      map[sourceCat].count++;
-      if (l.leadType === 'Hot') map[sourceCat].hot++;
-      if (l.leadType === 'MQL') map[sourceCat].mqls++;
+      if (map[sourceCat]) {
+        map[sourceCat].count++;
+        if (l.leadType === 'Hot') map[sourceCat].hot++;
+        if (l.leadType === 'MQL') map[sourceCat].mqls++;
+      }
     });
 
     return Object.entries(map).map(([source, data]) => ({ source, ...data }));
@@ -190,8 +192,7 @@ export default function App() {
         l.fullName?.toLowerCase().includes(search) ||
         l.email?.toLowerCase().includes(search) ||
         l.company?.toLowerCase().includes(search) ||
-        l.leadOwner?.toLowerCase().includes(search) ||
-        l.leadSource?.toLowerCase().includes(search);
+        l.leadOwner?.toLowerCase().includes(search);
 
       const matchesType = filterLeadType === 'All' || l.leadType === filterLeadType;
       const matchesPipeline = filterPipeline === 'All' || l.pipelineStage === filterPipeline;
@@ -350,7 +351,7 @@ export default function App() {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Lead Source Performance</h3>
-                <p className="text-xs text-slate-500">Volume and lead quality segmented by specific ActiveCampaign tags</p>
+                <p className="text-xs text-slate-500">Categorized by event presence and referral tag tracking</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-slate-600">
@@ -378,7 +379,7 @@ export default function App() {
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
-                <h3 className="text-base font-bold text-slate-900">Breakdown by Roles</h3>
+                <h3 className="text-base font-bold text-slate-900">Breakdown by Roles & Job Titles (%ROLE%)</h3>
                 <p className="text-xs text-slate-500">Auto-categorized into C-Level, Director, Manager, Founder, and Others</p>
               </div>
               <div className="overflow-x-auto">
@@ -421,7 +422,7 @@ export default function App() {
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by name, email, company, lead owner, or source..."
+                  placeholder="Search by name, email, company, or lead owner..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
