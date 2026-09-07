@@ -4,24 +4,24 @@ import {
   Search, Tag, BarChart2,
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
-  CheckCircle2, Clock, UserPlus, XCircle, Award, FileText, ChevronRight
+  CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
 
 const DEFAULT_TAG_RULES = {
-  MQL: ['FPF-Approved','FPF-Waitlisted'],
-  Hot: [''],
-  Warm: [''],
-  Cold: [''],
-  'Not Qualified': ['FPF-Rejected']
+  MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
+  Hot: ['hot', 'demo-requested', 'high-intent', 'fpf-vip'],
+  Warm: ['warm', 'engaged', 'newsletter-click'],
+  Cold: ['cold', 'unengaged', 'prospect'],
+  'Not Qualified': ['rejected', 'unqualified', 'archived', 'no-fit', 'spam']
 };
 
 const DEFAULT_SPEND = {
-  'Google event Registrants': 0,
-  'Google Partner Referral': 0,
-  'Website Growth Audit Form': 0,
-  'Internal leads': 0
+  'Google event Registrants': 1500,
+  'Google Partner Referral': 800,
+  'Website Growth Audit Form': 500,
+  'Internal leads': 200
 };
 
 const EVENT_REGISTRY = [
@@ -60,7 +60,7 @@ export default function App() {
 
   // Event Selection & Modal States
   const [selectedEventId, setSelectedEventId] = useState('google-ph-aug-2026');
-  const [tagLeadModal, setTagLeadModal] = useState(null); // { title: string, cleanTag: string }
+  const [tagLeadModal, setTagLeadModal] = useState(null); // { title: string, cleanTag: string, isGrowthAudit?: boolean }
 
   const [tagRules, setTagRules] = useState(DEFAULT_TAG_RULES);
   const [spendSettings, setSpendSettings] = useState(DEFAULT_SPEND);
@@ -247,13 +247,14 @@ export default function App() {
 
     processedLeads.forEach(l => {
       const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
+      const rawTagsLower = (l.rawTags || []).map(t => String(t).toLowerCase());
       const isRegistered = cleanTags.includes(regTagClean);
 
       if (isRegistered) {
         registered++;
         if (l.leadType === 'MQL') eventMqls++;
 
-        // Strict tag comparisons to eliminate overlap bugs
+        // Strict tag comparisons
         if (cleanTags.includes(appTagClean)) approved++;
         if (cleanTags.includes(attTagClean)) attended++;
         if (cleanTags.includes(noShowTagClean)) approvedNoShow++;
@@ -261,10 +262,19 @@ export default function App() {
         if (cleanTags.includes(rsvpConfClean)) rsvpConfirmed++;
         if (cleanTags.includes(rsvpPlusClean)) rsvpPlusOne++;
 
-        // Nurture Action 1
-        if (cleanTags.includes('fpfgrowthaudit')) growthAuditCount++;
+        // Growth Audit: Tag OR Email Link Click
+        const hasGrowthAuditTag = cleanTags.includes('fpfgrowthaudit');
+        const hasGrowthAuditLink = rawTagsLower.some(t => 
+          t.includes('future-proof-forum-2026-growth-audit') || 
+          t.includes('fenyx.digital/future-proof-forum-2026-growth-audit') ||
+          t.includes('growth-audit')
+        );
 
-        // Nurture Action 2
+        if (hasGrowthAuditTag || hasGrowthAuditLink) {
+          growthAuditCount++;
+        }
+
+        // Nurture Action 2: Resource Preferences
         if (cleanTags.includes('fpfconsumershift')) resourceCounts['FPF-Consumer Shift']++;
         if (cleanTags.includes('fpfdatatostrategy')) resourceCounts['FPF-Data to Strategy']++;
         if (cleanTags.includes('fpfgrowthblueprint')) resourceCounts['FPF-Growth Blueprint']++;
@@ -296,6 +306,23 @@ export default function App() {
   // Dynamic Contact Filter for Nurture Tag Modal
   const modalLeads = useMemo(() => {
     if (!tagLeadModal) return [];
+
+    if (tagLeadModal.isGrowthAudit) {
+      return processedLeads.filter(l => {
+        const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
+        const rawTagsLower = (l.rawTags || []).map(t => String(t).toLowerCase());
+        
+        const hasTag = cleanTags.includes('fpfgrowthaudit');
+        const hasLink = rawTagsLower.some(t => 
+          t.includes('future-proof-forum-2026-growth-audit') || 
+          t.includes('fenyx.digital/future-proof-forum-2026-growth-audit') ||
+          t.includes('growth-audit')
+        );
+
+        return hasTag || hasLink;
+      });
+    }
+
     const targetClean = tagLeadModal.cleanTag;
     return processedLeads.filter(l => {
       const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -528,15 +555,16 @@ export default function App() {
           </div>
         </div>
 
+        {/* REQUESTED RE-ARRANGED TAB ORDER */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
-            { id: 'events', label: 'Events Tracker', icon: Calendar },
-            { id: 'leads', label: `All Leads (${processedLeads.length})`, icon: Users },
-            { id: 'spend', label: 'Marketing Spend', icon: DollarSign },
-            { id: 'tag-rules', label: 'Tag Rules & Identifiers', icon: Tag },
+            { id: 'leads', label: `All leads (${processedLeads.length})`, icon: Users },
+            { id: 'events', label: 'Events', icon: Calendar },
             { id: 'campaigns', label: `Campaigns (${filteredCampaigns.length})`, icon: Mail },
-            { id: 'automations', label: `Automations (${automations.length})`, icon: Layers }
+            { id: 'automations', label: `Automations (${automations.length})`, icon: Layers },
+            { id: 'spend', label: 'Marketing Spend', icon: DollarSign },
+            { id: 'tag-rules', label: 'Rules', icon: Tag }
           ].map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -728,7 +756,140 @@ export default function App() {
           </div>
         )}
 
-        {/* EVENTS TAB WITH NURTURE DRILL-DOWN */}
+        {/* ALL LEADS TAB */}
+        {activeTab === 'leads' && (
+          <div className="space-y-4">
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, company, or lead owner..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-4 w-4 text-slate-400" />
+                  <span className="text-xs font-semibold text-slate-600">Lead Type:</span>
+                  <select
+                    value={filterLeadType}
+                    onChange={e => setFilterLeadType(e.target.value)}
+                    className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value="All">All Types</option>
+                    <option value="Hot">Hot</option>
+                    <option value="Warm">Warm</option>
+                    <option value="MQL">MQL</option>
+                    <option value="Cold">Cold</option>
+                    <option value="Not Qualified">Not Qualified</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-semibold text-slate-600">Pipeline Stage:</span>
+                  <select
+                    value={filterPipeline}
+                    onChange={e => setFilterPipeline(e.target.value)}
+                    className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value="All">All Stages</option>
+                    {uniquePipelineStages.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3">Contact</th>
+                      <th className="px-6 py-3">Company</th>
+                      <th className="px-6 py-3">Lead Owner</th>
+                      <th className="px-6 py-3">Lead Source</th>
+                      <th className="px-6 py-3">Lead Type</th>
+                      <th className="px-6 py-3">Pipeline Stage</th>
+                      <th className="px-6 py-3">Engagement</th>
+                      <th className="px-6 py-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {filteredLeads.map(lead => (
+                      <tr key={lead.id} className="hover:bg-slate-50 transition">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-900">{lead.fullName}</div>
+                          <div className="text-xs text-slate-500">{lead.email}</div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-1.5 text-xs text-slate-700 font-medium">
+                            <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                            <span>{lead.company}</span>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-1.5 text-xs text-slate-700 font-medium">
+                            <UserCheck className="h-3.5 w-3.5 text-slate-400" />
+                            <span>{lead.leadOwner}</span>
+                          </div>
+                        </td>
+                        
+                        <td className="px-6 py-4">
+                          <span className="text-xs text-slate-700 font-medium">
+                            {lead.leadSource || 'Unspecified'}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                            lead.leadType === 'Hot' ? 'bg-red-100 text-red-800' :
+                            lead.leadType === 'Warm' ? 'bg-amber-100 text-amber-800' :
+                            lead.leadType === 'MQL' ? 'bg-indigo-100 text-indigo-800' :
+                            lead.leadType === 'Not Qualified' ? 'bg-slate-200 text-slate-700' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {lead.leadType}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-md border border-slate-200">
+                            {lead.pipelineStage}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="text-xs font-semibold text-slate-800">{lead.emailsSent || 1} Sent</div>
+                          <div className="text-xs text-slate-500">{lead.emailsOpened || 0} Opens | {lead.linksClicked || 0} Clicks</div>
+                        </td>
+
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={() => setSelectedLead(lead)}
+                            className="inline-flex items-center space-x-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition"
+                          >
+                            <span>View Details</span>
+                            <ArrowUpRight className="h-3 w-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* EVENTS TAB (RENAMED FROM EVENTS TRACKER) */}
         {activeTab === 'events' && (
           <div className="space-y-8">
             
@@ -948,7 +1109,7 @@ export default function App() {
 
             </div>
 
-            {/* NEW: NURTURE RESPONSES & RESOURCE PREFERENCES SECTION */}
+            {/* NURTURE RESPONSES & RESOURCE PREFERENCES SECTION */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
               <div className="border-b border-slate-100 pb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -963,7 +1124,8 @@ export default function App() {
                 <button
                   onClick={() => setTagLeadModal({
                     title: 'Growth Audit Requests (Attendees)',
-                    cleanTag: 'fpfgrowthaudit'
+                    cleanTag: 'fpfgrowthaudit',
+                    isGrowthAudit: true
                   })}
                   className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 hover:from-indigo-100 hover:to-indigo-200/50 p-4 rounded-xl border border-indigo-200 text-left transition space-y-2 group shadow-xs"
                 >
@@ -973,7 +1135,7 @@ export default function App() {
                   </div>
                   <h4 className="font-bold text-slate-900 text-xs leading-snug">Growth Audit Request</h4>
                   <p className="text-2xl font-extrabold text-indigo-950">{activeEventStats.growthAuditCount}</p>
-                  <p className="text-[11px] text-indigo-600 font-medium">Tag: FPF-Growth-Audit</p>
+                  <p className="text-[11px] text-indigo-600 font-medium">Tag or Email Link Click</p>
                 </button>
 
                 {/* Nurture Action 2: Resource Preferences */}
@@ -989,7 +1151,8 @@ export default function App() {
                       key={catName}
                       onClick={() => setTagLeadModal({
                         title: `Resource Request: ${catName}`,
-                        cleanTag: tagMap[catName]
+                        cleanTag: tagMap[catName],
+                        isGrowthAudit: false
                       })}
                       className="bg-slate-50 hover:bg-slate-100 p-4 rounded-xl border border-slate-200 text-left transition space-y-2 group shadow-xs"
                     >
@@ -1006,247 +1169,6 @@ export default function App() {
               </div>
             </div>
 
-          </div>
-        )}
-
-        {/* ALL LEADS TAB */}
-        {activeTab === 'leads' && (
-          <div className="space-y-4">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
-              <div className="relative flex-1 min-w-[240px]">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search by name, email, company, or lead owner..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2">
-                  <Filter className="h-4 w-4 text-slate-400" />
-                  <span className="text-xs font-semibold text-slate-600">Lead Type:</span>
-                  <select
-                    value={filterLeadType}
-                    onChange={e => setFilterLeadType(e.target.value)}
-                    className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                  >
-                    <option value="All">All Types</option>
-                    <option value="Hot">Hot</option>
-                    <option value="Warm">Warm</option>
-                    <option value="MQL">MQL</option>
-                    <option value="Cold">Cold</option>
-                    <option value="Not Qualified">Not Qualified</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs font-semibold text-slate-600">Pipeline Stage:</span>
-                  <select
-                    value={filterPipeline}
-                    onChange={e => setFilterPipeline(e.target.value)}
-                    className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                  >
-                    <option value="All">All Stages</option>
-                    {uniquePipelineStages.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-600">
-                  <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                    <tr>
-                      <th className="px-6 py-3">Contact</th>
-                      <th className="px-6 py-3">Company</th>
-                      <th className="px-6 py-3">Lead Owner</th>
-                      <th className="px-6 py-3">Lead Source</th>
-                      <th className="px-6 py-3">Lead Type</th>
-                      <th className="px-6 py-3">Pipeline Stage</th>
-                      <th className="px-6 py-3">Engagement</th>
-                      <th className="px-6 py-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {filteredLeads.map(lead => (
-                      <tr key={lead.id} className="hover:bg-slate-50 transition">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-900">{lead.fullName}</div>
-                          <div className="text-xs text-slate-500">{lead.email}</div>
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <div className="flex items-center space-x-1.5 text-xs text-slate-700 font-medium">
-                            <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                            <span>{lead.company}</span>
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <div className="flex items-center space-x-1.5 text-xs text-slate-700 font-medium">
-                            <UserCheck className="h-3.5 w-3.5 text-slate-400" />
-                            <span>{lead.leadOwner}</span>
-                          </div>
-                        </td>
-                        
-                        <td className="px-6 py-4">
-                          <span className="text-xs text-slate-700 font-medium">
-                            {lead.leadSource || 'Unspecified'}
-                          </span>
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-                            lead.leadType === 'Hot' ? 'bg-red-100 text-red-800' :
-                            lead.leadType === 'Warm' ? 'bg-amber-100 text-amber-800' :
-                            lead.leadType === 'MQL' ? 'bg-indigo-100 text-indigo-800' :
-                            lead.leadType === 'Not Qualified' ? 'bg-slate-200 text-slate-700' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {lead.leadType}
-                          </span>
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <span className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-md border border-slate-200">
-                            {lead.pipelineStage}
-                          </span>
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <div className="text-xs font-semibold text-slate-800">{lead.emailsSent || 1} Sent</div>
-                          <div className="text-xs text-slate-500">{lead.emailsOpened || 0} Opens | {lead.linksClicked || 0} Clicks</div>
-                        </td>
-
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => setSelectedLead(lead)}
-                            className="inline-flex items-center space-x-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition"
-                          >
-                            <span>View Details</span>
-                            <ArrowUpRight className="h-3 w-3" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MARKETING SPEND TAB */}
-        {activeTab === 'spend' && (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-2">
-              <h3 className="text-base font-bold text-slate-900">Lead Source Marketing Spend Allocation</h3>
-              <p className="text-xs text-slate-500">
-                Configure your active advertising and partner acquisition spend per lead source. Amounts set here automatically update the Cost per MQL performance metrics globally.
-              </p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {Object.keys(DEFAULT_SPEND).map(source => (
-                  <div key={source} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">{source}</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-sm">$</span>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        value={spendSettings[source] ?? ''}
-                        onChange={e => handleSpendChange(source, e.target.value)}
-                        className="w-full pl-8 pr-4 py-2 text-sm font-semibold border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-400">Pushes directly to global backend configuration</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAG RULES TAB */}
-        {activeTab === 'tag-rules' && (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-2">
-              <h3 className="text-base font-bold text-slate-900">Auto-Identify Lead Types via ActiveCampaign Tags</h3>
-              <p className="text-xs text-slate-500">
-                Configure tag keywords globally. Any updates you make here will be saved to the backend and applied for your entire team across sessions.
-              </p>
-            </div>
-
-            <form onSubmit={handleAddTagRule} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex gap-4 items-end">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Lead Type</label>
-                <select
-                  value={newTagInput.stage}
-                  onChange={e => setNewTagInput({ ...newTagInput, stage: e.target.value })}
-                  className="text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="MQL">MQL</option>
-                  <option value="Hot">Hot</option>
-                  <option value="Warm">Warm</option>
-                  <option value="Cold">Cold</option>
-                  <option value="Not Qualified">Not Qualified</option>
-                </select>
-              </div>
-
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Tag Keyword / Identifier</label>
-                <input
-                  type="text"
-                  placeholder="e.g. approved, webinar-attendee, bad-data..."
-                  value={newTagInput.tag}
-                  onChange={e => setNewTagInput({ ...newTagInput, tag: e.target.value })}
-                  className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-lg inline-flex items-center space-x-1 transition"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Rule</span>
-              </button>
-            </form>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {Object.entries(tagRules).map(([stage, tags]) => (
-                <div key={stage} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="font-bold text-slate-900 text-sm">{stage} Tag Conditions</h4>
-                    <span className="text-xs font-semibold text-slate-400">{tags.length} active rules</span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map(t => (
-                      <span key={t} className="inline-flex items-center space-x-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs px-2.5 py-1 rounded-full">
-                        <Tag className="h-3 w-3 text-slate-400" />
-                        <span>{t}</span>
-                        <button
-                          onClick={() => handleRemoveTagRule(stage, t)}
-                          className="hover:text-red-600 ml-1"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
@@ -1437,16 +1359,124 @@ export default function App() {
           </div>
         )}
 
+        {/* MARKETING SPEND TAB */}
+        {activeTab === 'spend' && (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-2">
+              <h3 className="text-base font-bold text-slate-900">Lead Source Marketing Spend Allocation</h3>
+              <p className="text-xs text-slate-500">
+                Configure your active advertising and partner acquisition spend per lead source. Amounts set here automatically update the Cost per MQL performance metrics globally.
+              </p>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Object.keys(DEFAULT_SPEND).map(source => (
+                  <div key={source} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">{source}</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-sm">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={spendSettings[source] ?? ''}
+                        onChange={e => handleSpendChange(source, e.target.value)}
+                        className="w-full pl-8 pr-4 py-2 text-sm font-semibold border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-400">Pushes directly to global backend configuration</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* RULES TAB (RENAMED FROM TAG RULES & IDENTIFIERS) */}
+        {activeTab === 'tag-rules' && (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-2">
+              <h3 className="text-base font-bold text-slate-900">Auto-Identify Lead Types via ActiveCampaign Tags</h3>
+              <p className="text-xs text-slate-500">
+                Configure tag keywords globally. Any updates you make here will be saved to the backend and applied for your entire team across sessions.
+              </p>
+            </div>
+
+            <form onSubmit={handleAddTagRule} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex gap-4 items-end">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Lead Type</label>
+                <select
+                  value={newTagInput.stage}
+                  onChange={e => setNewTagInput({ ...newTagInput, stage: e.target.value })}
+                  className="text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="MQL">MQL</option>
+                  <option value="Hot">Hot</option>
+                  <option value="Warm">Warm</option>
+                  <option value="Cold">Cold</option>
+                  <option value="Not Qualified">Not Qualified</option>
+                </select>
+              </div>
+
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Tag Keyword / Identifier</label>
+                <input
+                  type="text"
+                  placeholder="e.g. approved, webinar-attendee, bad-data..."
+                  value={newTagInput.tag}
+                  onChange={e => setNewTagInput({ ...newTagInput, tag: e.target.value })}
+                  className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-lg inline-flex items-center space-x-1 transition"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Rule</span>
+              </button>
+            </form>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {Object.entries(tagRules).map(([stage, tags]) => (
+                <div key={stage} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 className="font-bold text-slate-900 text-sm">{stage} Tag Conditions</h4>
+                    <span className="text-xs font-semibold text-slate-400">{tags.length} active rules</span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map(t => (
+                      <span key={t} className="inline-flex items-center space-x-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs px-2.5 py-1 rounded-full">
+                        <Tag className="h-3 w-3 text-slate-400" />
+                        <span>{t}</span>
+                        <button
+                          onClick={() => handleRemoveTagRule(stage, t)}
+                          className="hover:text-red-600 ml-1"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </main>
 
-      {/* NURTURE RESPONSE DRILL-DOWN MODAL */}
+      {/* ENHANCED NURTURE RESPONSE DRILL-DOWN MODAL */}
       {tagLeadModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
               <div>
                 <h3 className="font-bold text-slate-900 text-base">{tagLeadModal.title}</h3>
-                <p className="text-xs text-slate-500">Showing {modalLeads.length} contacts matching this nurture response tag</p>
+                <p className="text-xs text-slate-500">Showing {modalLeads.length} contacts matching this nurture response criteria</p>
               </div>
               <button
                 onClick={() => setTagLeadModal(null)}
@@ -1457,9 +1487,17 @@ export default function App() {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {/* Delivery Banner Confirmation */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 flex items-center space-x-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                <span>
+                  <strong>Email Delivery Confirmation:</strong> All contacts listed below have been automatically sent their requested event materials via email.
+                </span>
+              </div>
+
               {modalLeads.length === 0 ? (
                 <div className="text-center py-8 text-xs text-slate-400 italic">
-                  No contacts found possessing this specific tag.
+                  No contacts found matching this nurture trigger.
                 </div>
               ) : (
                 <div className="overflow-x-auto border border-slate-200 rounded-lg">
@@ -1469,27 +1507,60 @@ export default function App() {
                         <th className="px-4 py-2.5">Contact Name</th>
                         <th className="px-4 py-2.5">Email</th>
                         <th className="px-4 py-2.5">Company</th>
-                        <th className="px-4 py-2.5">Lead Type</th>
+                        <th className="px-4 py-2.5">Trigger Source / Audit Link Data</th>
+                        <th className="px-4 py-2.5">Resource Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {modalLeads.map(lead => (
-                        <tr key={lead.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-2.5 font-bold text-slate-900">{lead.fullName}</td>
-                          <td className="px-4 py-2.5 text-slate-500">{lead.email}</td>
-                          <td className="px-4 py-2.5 font-medium text-slate-700">{lead.company}</td>
-                          <td className="px-4 py-2.5">
-                            <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${
-                              lead.leadType === 'Hot' ? 'bg-red-100 text-red-800' :
-                              lead.leadType === 'Warm' ? 'bg-amber-100 text-amber-800' :
-                              lead.leadType === 'MQL' ? 'bg-indigo-100 text-indigo-800' :
-                              'bg-blue-100 text-blue-800'
-                            }`}>
-                              {lead.leadType}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {modalLeads.map(lead => {
+                        const cleanTags = (lead.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
+                        const rawTagsLower = (lead.rawTags || []).map(t => String(t).toLowerCase());
+
+                        const hasTag = cleanTags.includes('fpfgrowthaudit');
+                        const hasLinkClicked = rawTagsLower.some(t => 
+                          t.includes('future-proof-forum-2026-growth-audit') || 
+                          t.includes('growth-audit')
+                        );
+
+                        return (
+                          <tr key={lead.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-2.5 font-bold text-slate-900">{lead.fullName}</td>
+                            <td className="px-4 py-2.5 text-slate-500">{lead.email}</td>
+                            <td className="px-4 py-2.5 font-medium text-slate-700">{lead.company}</td>
+                            
+                            <td className="px-4 py-2.5">
+                              {tagLeadModal.isGrowthAudit ? (
+                                <div className="space-y-0.5">
+                                  <div className="font-semibold text-indigo-700 flex items-center space-x-1">
+                                    <span>
+                                      {hasTag && hasLinkClicked ? 'Tag Assigned & Link Clicked' :
+                                       hasLinkClicked ? 'Email Link Clicked' : 'Tag: FPF-Growth-Audit'}
+                                    </span>
+                                  </div>
+                                  <a 
+                                    href="https://www.fenyx.digital/future-proof-forum-2026-growth-audit" 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="text-[10px] text-slate-400 hover:text-indigo-600 underline flex items-center space-x-1"
+                                  >
+                                    <span>https://www.fenyx.digital/future-proof-forum-2026-growth-audit</span>
+                                    <ExternalLink className="h-2.5 w-2.5 inline" />
+                                  </a>
+                                </div>
+                              ) : (
+                                <span className="font-mono text-slate-500">{tagLeadModal.title}</span>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-2.5">
+                              <span className="inline-flex items-center space-x-1 bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                <Check className="h-3 w-3" />
+                                <span>Resources Received via Email</span>
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
