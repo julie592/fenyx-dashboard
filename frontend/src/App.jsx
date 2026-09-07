@@ -5,7 +5,7 @@ import {
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
   CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
-  MessageSquare, Bot, Minimize2
+  MessageSquare, Bot, Minimize2, Workflow, Radio
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
@@ -54,10 +54,11 @@ export default function App() {
   const [filterLeadType, setFilterLeadType] = useState('All');
   const [filterPipeline, setFilterPipeline] = useState('All');
 
-  // Campaign Tab Date Filter States
+  // Campaign Tab States
   const [campaignDatePreset, setCampaignDatePreset] = useState('All');
   const [campaignStartDate, setCampaignStartDate] = useState('');
   const [campaignEndDate, setCampaignEndDate] = useState('');
+  const [campaignTypeFilter, setCampaignDateFilter] = useState('all'); // 'all' | 'broadcast' | 'automation'
 
   // Event Selection & Modal States
   const [selectedEventId, setSelectedEventId] = useState('google-ph-aug-2026');
@@ -430,6 +431,34 @@ export default function App() {
     });
   }, [campaigns, campaignDatePreset, campaignStartDate, campaignEndDate]);
 
+  // CATEGORIZE CAMPAIGNS INTO BROADCAST VS AUTOMATION SEQUENCES
+  const categorizedCampaigns = useMemo(() => {
+    const broadcast = [];
+    const automation = [];
+
+    filteredCampaigns.forEach(c => {
+      const type = String(c.type || '').toLowerCase();
+      const name = String(c.name || '').toLowerCase();
+
+      // Detect autoresponders or sequence prefix patterns (e.g. E1:, E2:, Drip, Sequence)
+      const isAuto = 
+        type === 'autoresponder' || 
+        type === 'automation' || 
+        /^\s*e\d+:/i.test(c.name) || 
+        name.includes('automation') || 
+        name.includes('drip') || 
+        name.includes('sequence');
+
+      if (isAuto) {
+        automation.push({ ...c, category: 'Automation Email' });
+      } else {
+        broadcast.push({ ...c, category: 'Broadcast Email' });
+      }
+    });
+
+    return { broadcast, automation };
+  }, [filteredCampaigns]);
+
   const campaignScorecard = useMemo(() => {
     let uniqueSent = 0, uniqueOpens = 0, uniqueClicks = 0;
     filteredCampaigns.forEach(c => {
@@ -481,21 +510,60 @@ export default function App() {
     saveRulesToBackend(updatedRules);
   };
 
-  // Local state update while typing
   const handleSpendInputChange = (source, value) => {
-    setSpendSettings(prev => ({
-      ...prev,
-      [source]: value
-    }));
+    setSpendSettings(prev => ({ ...prev, [source]: value }));
   };
 
-  // Persist to MongoDB on blur
   const handleSpendInputBlur = () => {
     const cleanSpend = {};
     Object.keys(spendSettings).forEach(k => {
       cleanSpend[k] = Number(spendSettings[k]) || 0;
     });
     saveSpendToBackend(cleanSpend);
+  };
+
+  const renderCampaignCard = (c) => {
+    const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 1;
+    const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
+    const uniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
+    const openRate = ((uniqueOpens / sendAmt) * 100).toFixed(1);
+    const clickRate = ((uniqueClicks / sendAmt) * 100).toFixed(1);
+    const isAboveAvg = Number(openRate) >= 21.5;
+
+    return (
+      <div key={c.id} className="p-4 border rounded-xl flex justify-between items-center bg-slate-50/50 hover:bg-slate-50 transition shadow-2xs">
+        <div className="space-y-1">
+          <div className="font-bold text-slate-900 text-sm flex items-center space-x-2">
+            <span>{c.name}</span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              isAboveAvg ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {isAboveAvg ? 'Above Benchmark' : 'Average Engagement'}
+            </span>
+          </div>
+          <div className="text-xs text-slate-500 flex items-center space-x-2">
+            <span>Status: <strong className="text-slate-700">{c.status}</strong></span>
+            <span>•</span>
+            <span>Unique Recipients: <strong className="text-slate-700">{sendAmt.toLocaleString()}</strong></span>
+            <span>•</span>
+            <span>Sent: {c.sdate || c.cdate || 'Recent'}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-6 text-right">
+          <div>
+            <div className="text-xs text-slate-400">Unique Opens / Clicks</div>
+            <div className="text-xs font-bold text-slate-800">{uniqueOpens.toLocaleString()} opens | {uniqueClicks.toLocaleString()} clicks</div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-400">Unique Rates</div>
+            <div className={`text-xs font-extrabold ${isAboveAvg ? 'text-emerald-600' : 'text-slate-800'}`}>
+              {openRate}% open | {clickRate}% click
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -529,7 +597,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* TABS MENU */}
+        {/* RE-ARRANGED TABS */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
@@ -840,6 +908,7 @@ export default function App() {
         {/* EVENTS TAB */}
         {activeTab === 'events' && (
           <div className="space-y-8">
+            
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-wrap items-center justify-between gap-4">
               <div className="space-y-1.5 flex-1 min-w-[280px]">
                 <div className="flex items-center space-x-2">
@@ -1068,7 +1137,7 @@ export default function App() {
                     cleanTag: 'fpfgrowthaudit',
                     isGrowthAudit: true
                   })}
-                  className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 hover:from-indigo-100 hover:to-indigo-200/50 p-4 rounded-xl border border-indigo-200 text-left transition space-y-2 group shadow-xs"
+                  className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 hover:from-indigo-100 hover:to-indigo-200/50 p-4 rounded-xl border border-indigo-200 text-left transition space-y-2 group shadow-xs cursor-pointer"
                 >
                   <div className="flex justify-between items-center">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Nurture Action #1</span>
@@ -1094,7 +1163,7 @@ export default function App() {
                         cleanTag: tagMap[catName],
                         isGrowthAudit: false
                       })}
-                      className="bg-slate-50 hover:bg-slate-100 p-4 rounded-xl border border-slate-200 text-left transition space-y-2 group shadow-xs"
+                      className="bg-slate-50 hover:bg-slate-100 p-4 rounded-xl border border-slate-200 text-left transition space-y-2 group shadow-xs cursor-pointer"
                     >
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Resource Request</span>
@@ -1112,9 +1181,11 @@ export default function App() {
           </div>
         )}
 
-        {/* CAMPAIGNS TAB */}
+        {/* ENHANCED ORGANIZED CAMPAIGNS TAB */}
         {activeTab === 'campaigns' && (
           <div className="space-y-6">
+            
+            {/* Filter Controls Bar */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
               <div className="flex items-center space-x-3">
                 <Calendar className="h-4 w-4 text-slate-400" />
@@ -1129,6 +1200,28 @@ export default function App() {
                   <option value="90d">Last 90 Days</option>
                   <option value="custom">Custom Date Range</option>
                 </select>
+              </div>
+
+              {/* Sub-Category Filter Segment Buttons */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-bold">
+                <button
+                  onClick={() => setCampaignDateFilter('all')}
+                  className={`px-3 py-1 rounded-md transition ${campaignTypeFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  All Emails ({filteredCampaigns.length})
+                </button>
+                <button
+                  onClick={() => setCampaignDateFilter('broadcast')}
+                  className={`px-3 py-1 rounded-md transition ${campaignTypeFilter === 'broadcast' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  Broadcast Emails ({categorizedCampaigns.broadcast.length})
+                </button>
+                <button
+                  onClick={() => setCampaignDateFilter('automation')}
+                  className={`px-3 py-1 rounded-md transition ${campaignTypeFilter === 'automation' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  Automation Sequences ({categorizedCampaigns.automation.length})
+                </button>
               </div>
 
               {campaignDatePreset === 'custom' && (
@@ -1148,12 +1241,9 @@ export default function App() {
                   />
                 </div>
               )}
-
-              <div className="text-xs font-medium text-slate-500">
-                Showing <span className="font-bold text-slate-900">{filteredCampaigns.length}</span> of {campaigns.length} campaigns
-              </div>
             </div>
 
+            {/* Email Performance Scorecard */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="p-4 rounded-xl border bg-white border-slate-200 shadow-sm space-y-1">
                 <div className="flex justify-between items-center">
@@ -1201,55 +1291,57 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200">
-                <h3 className="text-base font-bold text-slate-900">Broadcast Campaign Details</h3>
-              </div>
-              <div className="p-6 text-sm text-slate-500">
-                {filteredCampaigns.length === 0 ? 'No broadcast campaigns found for the selected date range.' : (
-                  <div className="space-y-4">
-                    {filteredCampaigns.map(c => {
-                      const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 1;
-                      const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
-                      const uniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
-                      const openRate = ((uniqueOpens / sendAmt) * 100).toFixed(1);
-                      const clickRate = ((uniqueClicks / sendAmt) * 100).toFixed(1);
-                      const isAboveAvg = Number(openRate) >= 21.5;
-
-                      return (
-                        <div key={c.id} className="p-4 border rounded-xl flex justify-between items-center bg-slate-50/50 hover:bg-slate-50 transition">
-                          <div className="space-y-1">
-                            <div className="font-bold text-slate-900 text-sm flex items-center space-x-2">
-                              <span>{c.name}</span>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                isAboveAvg ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                {isAboveAvg ? 'Above Benchmark' : 'Average Engagement'}
-                              </span>
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              Status: {c.status} | Unique Recipients: {sendAmt.toLocaleString()} | Sent: {c.sdate || c.cdate || 'Recent'}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-6 text-right">
-                            <div>
-                              <div className="text-xs text-slate-400">Unique Opens / Clicks</div>
-                              <div className="text-xs font-bold text-slate-800">{uniqueOpens.toLocaleString()} opens | {uniqueClicks.toLocaleString()} clicks</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-slate-400">Unique Rates</div>
-                              <div className={`text-xs font-extrabold ${isAboveAvg ? 'text-emerald-600' : 'text-slate-800'}`}>
-                                {openRate}% open | {clickRate}% click
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+            {/* ORGANIZED CAMPAIGNS CONTAINER */}
+            <div className="space-y-6">
+              
+              {/* SECTION 1: BROADCAST EMAILS */}
+              {(campaignTypeFilter === 'all' || campaignTypeFilter === 'broadcast') && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+                    <div className="flex items-center space-x-2">
+                      <Radio className="h-4 w-4 text-indigo-600" />
+                      <h3 className="text-base font-bold text-slate-900">Broadcast Emails (Bulk One-Off Sends)</h3>
+                    </div>
+                    <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full border border-indigo-100">
+                      {categorizedCampaigns.broadcast.length} Broadcasts
+                    </span>
                   </div>
-                )}
-              </div>
+                  <div className="p-6 text-sm text-slate-500">
+                    {categorizedCampaigns.broadcast.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">No broadcast emails found for this selection.</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {categorizedCampaigns.broadcast.map(renderCampaignCard)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 2: AUTOMATION & SEQUENCE EMAILS */}
+              {(campaignTypeFilter === 'all' || campaignTypeFilter === 'automation') && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+                    <div className="flex items-center space-x-2">
+                      <Workflow className="h-4 w-4 text-purple-600" />
+                      <h3 className="text-base font-bold text-slate-900">Automation Sequence Emails (Drips & Triggered)</h3>
+                    </div>
+                    <span className="text-xs font-bold bg-purple-50 text-purple-700 px-2.5 py-1 rounded-full border border-purple-100">
+                      {categorizedCampaigns.automation.length} Sequence Emails
+                    </span>
+                  </div>
+                  <div className="p-6 text-sm text-slate-500">
+                    {categorizedCampaigns.automation.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">No automated sequence emails found for this selection.</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {categorizedCampaigns.automation.map(renderCampaignCard)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
 
           </div>
@@ -1410,7 +1502,7 @@ export default function App() {
       {!isChatOpen && (
         <button
           onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-indigo-600 to-slate-900 hover:from-indigo-700 hover:to-slate-800 text-white p-3.5 rounded-full shadow-2xl flex items-center space-x-2.5 transition transform hover:scale-105 border border-indigo-400/30"
+          className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-indigo-600 to-slate-900 hover:from-indigo-700 hover:to-slate-800 text-white p-3.5 rounded-full shadow-2xl flex items-center space-x-2.5 transition transform hover:scale-105 border border-indigo-400/30 cursor-pointer"
         >
           <div className="relative">
             <Sparkles className="h-5 w-5 text-indigo-300 animate-pulse" />
@@ -1436,7 +1528,7 @@ export default function App() {
             </div>
             <button
               onClick={() => setIsChatOpen(false)}
-              className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition"
+              className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
             >
               <Minimize2 className="h-4 w-4" />
             </button>
@@ -1510,7 +1602,7 @@ export default function App() {
               </div>
               <button
                 onClick={() => setTagLeadModal(null)}
-                className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-500 transition"
+                className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-500 transition cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1644,7 +1736,7 @@ export default function App() {
             <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 text-right">
               <button
                 onClick={() => setTagLeadModal(null)}
-                className="px-4 py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-900 transition"
+                className="px-4 py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-900 transition cursor-pointer"
               >
                 Close List
               </button>
@@ -1694,7 +1786,7 @@ export default function App() {
             <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 text-right">
               <button
                 onClick={() => setSelectedLead(null)}
-                className="px-4 py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-900"
+                className="px-4 py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-900 cursor-pointer"
               >
                 Close Details
               </button>
