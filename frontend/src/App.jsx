@@ -58,8 +58,12 @@ setLastSyncTime(new Date().toLocaleTimeString());
         setAutomations(data.automations || []);
       }
 
-      setSyncStatus('Connected');
-      setLastSyncTime(new Date().toLocaleTimeString());
+      const failedRequests = [contactsRes, campaignsRes, automationsRes].filter(
+  result => result.status === 'rejected' || !result.value?.ok
+);
+
+setSyncStatus(failedRequests.length ? 'Partially connected' : 'Connected');
+setLastSyncTime(new Date().toLocaleTimeString());
     } catch (err) {
       console.error('Fetch error:', err);
       setSyncStatus('Error');
