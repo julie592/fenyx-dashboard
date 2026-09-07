@@ -87,12 +87,11 @@ async function saveConfig(key, data) {
       console.error(`Error saving ${key} to MongoDB:`, err.message);
     }
   } else {
-    console.warn(`⚠️ MongoDB not connected (readyState: ${mongoose.connection.readyState}). Saved to fallback memory store.`);
+    console.warn(`⚠️ MongoDB not connected. Saved to fallback memory store.`);
   }
   return false;
 }
 
-// Global Config API Endpoints
 app.get('/api/tag-rules', async (req, res) => {
   const rules = await getConfig('tagRules', DEFAULT_TAG_RULES);
   res.json(rules);
@@ -127,19 +126,6 @@ async function getAllPages(pathStr, collectionKey) {
 
 app.get('/', (req, res) => res.json({ message: 'Fenyx ActiveCampaign Bridge is Live!', status: 'online' }));
 app.get('/health', (req, res) => res.json({ status: 'ok', hasUrl: Boolean(AC_URL), hasKey: Boolean(AC_KEY), dbState: mongoose.connection.readyState }));
-
-app.get('/api/debug-fields', async (req, res) => {
-  try {
-    const fieldsRes = await acApi.get('/fields?limit=100');
-    res.json({
-      success: true,
-      fields: (fieldsRes.data.fields || []).map((field) => ({
-        id: field.id, title: field.title, pertag: field.perstag || field.pertag,
-        cleanKey: cleanKey(field.perstag || field.pertag || field.title)
-      }))
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
 
 app.get('/api/contacts', async (req, res) => {
   if (!AC_URL || !AC_KEY) return res.status(500).json({ error: 'Missing API Key' });
@@ -195,12 +181,21 @@ app.get('/api/contacts', async (req, res) => {
     const tagMap = {};
     allTags.forEach((tag) => { if (tag?.id) tagMap[tag.id] = tag.tag; });
 
+    // Track tag dates alongside the tags
     const contactTagMap = {};
+    const contactTagDateMap = {};
+
     allContactTags.forEach((ct) => {
       if (!ct?.contact) return;
-      if (!contactTagMap[ct.contact]) contactTagMap[ct.contact] = [];
+      if (!contactTagMap[ct.contact]) {
+        contactTagMap[ct.contact] = [];
+        contactTagDateMap[ct.contact] = {};
+      }
       const tagName = tagMap[ct.tag];
-      if (tagName && !contactTagMap[ct.contact].includes(tagName)) contactTagMap[ct.contact].push(tagName);
+      if (tagName && !contactTagMap[ct.contact].includes(tagName)) {
+        contactTagMap[ct.contact].push(tagName);
+        contactTagDateMap[ct.contact][cleanKey(tagName)] = ct.cdate; // Save the exact date the tag/click happened
+      }
     });
 
     const contactAutomationMap = {};
@@ -214,6 +209,7 @@ app.get('/api/contacts', async (req, res) => {
 
     const formattedContacts = allContacts.map((contact) => {
       const rawTags = contactTagMap[contact.id] || [];
+      const tagDates = contactTagDateMap[contact.id] || {};
       const automationData = contactAutomationMap[contact.id] || { total: 0, active: 0, completed: 0 };
       const custom = contactCustomMap[contact.id] || {};
 
@@ -242,7 +238,7 @@ app.get('/api/contacts', async (req, res) => {
         id: `ac-${contact.id}`, firstName: contact.firstName || '', lastName: contact.lastName || '',
         fullName: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email, email: contact.email,
         company: companyVal, role: roleVal, leadOwner: ownerVal, pipelineStage: stageVal, leadSource: sourceVal,
-        dateAdded: contact.cdate ? contact.cdate.split('T')[0] : '2026-08-01', rawTags, emailsSent: totalEmailsSent,
+        dateAdded: contact.cdate ? contact.cdate.split('T')[0] : '2026-08-01', rawTags, tagDates, emailsSent: totalEmailsSent,
         emailsOpened, linksClicked, automationsEntered: automationData.total, activeAutomations: automationData.active, completedAutomations: automationData.completed
       };
     });
