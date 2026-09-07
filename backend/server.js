@@ -20,21 +20,13 @@ const acApi = axios.create({
 
 const cleanKey = (value = '') => String(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 
-// --- MONGODB DATABASE CONFIGURATION ---
+// --- MONGODB CONFIGURATION & CACHE LAYER ---
 const configSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
   data: { type: mongoose.Schema.Types.Mixed, required: true }
 }, { timestamps: true, minimize: false });
 
 const Config = mongoose.models.Config || mongoose.model('Config', configSchema);
-
-if (MONGO_URI) {
-  mongoose.connect(MONGO_URI)
-    .then(() => console.log('✅ Connected to MongoDB Atlas successfully!'))
-    .catch(err => console.error('❌ MongoDB Connection Error:', err.message));
-} else {
-  console.warn('⚠️ MONGODB_URI is not defined in environment variables.');
-}
 
 const DEFAULT_TAG_RULES = {
   MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
@@ -51,43 +43,63 @@ const DEFAULT_SPEND_SETTINGS = {
   'Internal leads': 200
 };
 
-const memoryStore = {
+// Global memory cache to prevent cold-start resets
+const memoryCache = {
   tagRules: { ...DEFAULT_TAG_RULES },
   spendSettings: { ...DEFAULT_SPEND_SETTINGS }
 };
 
-async function getConfig(key, defaultData) {
-  if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
+if (MONGO_URI) {
+  mongoose.connect(MONGO_URI)
+    .then(async () => {
+      console.log('✅ Connected to MongoDB Atlas!');
+      // Hydrate memory cache from DB on startup
+      try {
+        const rulesDoc = await Config.findOne({ key: 'tagRules' });
+        if (rulesDoc?.data) memoryCache.tagRules = rulesDoc.data;
+
+        const spendDoc = await Config.findOne({ key: 'spendSettings' });
+        if (spendDoc?.data) memoryCache.spendSettings = spendDoc.data;
+      } catch (e) {
+        console.error('Cache hydration error:', e.message);
+      }
+    })
+    .catch(err => console.error('❌ MongoDB Connection Error:', err.message));
+} else {
+  console.warn('⚠️ MONGODB_URI is not set in environment variables.');
+}
+
+async function getConfig(key, fallback) {
+  if (mongoose.connection.readyState === 1) {
     try {
-      let record = await Config.findOne({ key });
-      if (record && record.data) {
+      const record = await Config.findOne({ key });
+      if (record?.data) {
+        memoryCache[key] = record.data;
         return record.data;
       }
-      record = await Config.create({ key, data: defaultData });
-      return record.data;
+      await Config.create({ key, data: fallback });
+      return fallback;
     } catch (err) {
-      console.error(`Error reading ${key} from MongoDB:`, err.message);
+      console.error(`Error reading ${key}:`, err.message);
     }
   }
-  return memoryStore[key] || defaultData;
+  return memoryCache[key] || fallback;
 }
 
 async function saveConfig(key, data) {
-  memoryStore[key] = data;
-  if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
+  memoryCache[key] = data; // Instant cache update
+  if (mongoose.connection.readyState === 1) {
     try {
       await Config.findOneAndUpdate(
         { key },
-        { $set: { data } },
+        { data },
         { upsert: true, new: true, runValidators: true }
       );
-      console.log(`✅ Successfully saved ${key} to MongoDB Atlas`);
+      console.log(`✅ Saved ${key} to MongoDB Atlas`);
       return true;
     } catch (err) {
-      console.error(`Error saving ${key} to MongoDB:`, err.message);
+      console.error(`Error writing ${key} to Mongo:`, err.message);
     }
-  } else {
-    console.warn(`⚠️ MongoDB not connected. Saved to fallback memory store.`);
   }
   return false;
 }
@@ -181,7 +193,6 @@ app.get('/api/contacts', async (req, res) => {
     const tagMap = {};
     allTags.forEach((tag) => { if (tag?.id) tagMap[tag.id] = tag.tag; });
 
-    // Track tag dates alongside the tags
     const contactTagMap = {};
     const contactTagDateMap = {};
 
@@ -194,7 +205,7 @@ app.get('/api/contacts', async (req, res) => {
       const tagName = tagMap[ct.tag];
       if (tagName && !contactTagMap[ct.contact].includes(tagName)) {
         contactTagMap[ct.contact].push(tagName);
-        contactTagDateMap[ct.contact][cleanKey(tagName)] = ct.cdate; // Save the exact date the tag/click happened
+        contactTagDateMap[ct.contact][cleanKey(tagName)] = ct.cdate;
       }
     });
 
