@@ -5,7 +5,7 @@ import {
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
   CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
-  MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown
+  MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, TrendingUp
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
@@ -344,6 +344,31 @@ export default function App() {
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
   }, [processedLeads]);
 
+  // TOP PERFORMING SUBJECT LINES ENGINE
+  const topSubjectLines = useMemo(() => {
+    if (!campaigns || !campaigns.length) return [];
+
+    return [...campaigns]
+      .map(c => {
+        const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 0;
+        const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
+        const openRate = sendAmt > 0 ? (uniqueOpens / sendAmt) * 100 : 0;
+        const headline = c.subject || c.subject_line || c.name;
+
+        return {
+          id: c.id,
+          subject: headline,
+          name: c.name,
+          sendAmt,
+          uniqueOpens,
+          openRate
+        };
+      })
+      .filter(item => item.sendAmt > 0)
+      .sort((a, b) => b.openRate - a.openRate)
+      .slice(0, 5);
+  }, [campaigns]);
+
   // REAL-TIME ACTIVITY FEED: STRICTLY OPENS AND CLICKS ONLY
   const liveActivityFeed = useMemo(() => {
     if (!processedLeads.length) return [];
@@ -354,7 +379,6 @@ export default function App() {
       const tagDates = lead.tagDates || {};
       const cleanTags = (lead.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
 
-      // Check for link click events
       const clickTagMatch = cleanTags.find(t => t.includes('click') || t.includes('growth-audit'));
       if (lead.linksClicked > 0 || clickTagMatch) {
         let timestamp = null;
@@ -376,7 +400,6 @@ export default function App() {
         });
       }
 
-      // Check for email open events
       const openTagMatch = cleanTags.find(t => t.includes('open'));
       if (lead.emailsOpened > 0 || openTagMatch) {
         let timestamp = null;
@@ -399,7 +422,6 @@ export default function App() {
       }
     });
 
-    // Sort by most recent event date first and limit to top 8 items
     return actions
       .sort((a, b) => b.rawDate - a.rawDate)
       .slice(0, 8);
@@ -743,6 +765,52 @@ export default function App() {
               </div>
             </div>
 
+            {/* TOP PERFORMING EMAIL SUBJECT LINES SECTION */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Top Performing Email Subject Lines</h3>
+                  <p className="text-xs text-slate-500">Highest unique open rates across broadcast and sequence campaigns</p>
+                </div>
+                <span className="text-[10px] font-bold uppercase bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center space-x-1">
+                  <Award className="h-3 w-3 text-emerald-600" />
+                  <span>Open Rate Champions</span>
+                </span>
+              </div>
+
+              <div className="p-6">
+                {topSubjectLines.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No campaign subject line metrics recorded yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {topSubjectLines.map((item, idx) => (
+                      <div key={item.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between hover:bg-slate-100/60 transition">
+                        <div className="flex items-center space-x-3 min-w-0 pr-4">
+                          <div className="flex-shrink-0 w-7 h-7 bg-indigo-100 text-indigo-800 font-extrabold text-xs rounded-lg flex items-center justify-center border border-indigo-200">
+                            #{idx + 1}
+                          </div>
+                          <div className="truncate space-y-0.5">
+                            <p className="font-bold text-slate-900 text-xs truncate leading-snug">{item.subject}</p>
+                            <p className="text-[11px] text-slate-500 truncate">
+                              Campaign: <strong className="text-slate-700">{item.name}</strong> • Sent: {item.sendAmt.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right flex-shrink-0 pl-2">
+                          <div className="text-xs font-extrabold text-emerald-600 flex items-center justify-end space-x-1">
+                            <TrendingUp className="h-3 w-3" />
+                            <span>{item.openRate.toFixed(1)}%</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-medium">{item.uniqueOpens.toLocaleString()} unique opens</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                 <div>
@@ -825,7 +893,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* STRICT OPENS & CLICKS REAL-TIME ACTIVITY FEED */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center space-x-2">
