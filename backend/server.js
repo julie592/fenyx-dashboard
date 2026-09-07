@@ -21,8 +21,10 @@ const acApi = axios.create({
 const cleanKey = (value = '') =>
   String(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 
-// --- GLOBAL TAG RULES STORAGE ---
+// --- GLOBAL PERSISTENCE FILE PATHS & DEFAULTS ---
 const RULES_FILE = path.join(__dirname, 'tagRules.json');
+const SPEND_FILE = path.join(__dirname, 'spendSettings.json');
+
 const DEFAULT_TAG_RULES = {
   MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
   Hot: ['hot', 'demo-requested', 'high-intent', 'fpf-vip'],
@@ -31,41 +33,79 @@ const DEFAULT_TAG_RULES = {
   'Not Qualified': ['rejected', 'unqualified', 'archived', 'no-fit', 'spam']
 };
 
-function getTagRules() {
+const DEFAULT_SPEND_SETTINGS = {
+  'Google event Registrants': 1500,
+  'Google Partner Referral': 800,
+  'Website Growth Audit Form': 500,
+  'Internal leads': 200
+};
+
+function readJsonFile(filePath, fallbackData) {
   try {
-    if (fs.existsSync(RULES_FILE)) {
-      return JSON.parse(fs.readFileSync(RULES_FILE, 'utf8'));
+    if (fs.existsSync(filePath)) {
+      const fileData = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(fileData);
     }
   } catch (err) {
-    console.error("Error reading tag rules file:", err);
+    console.error(`Error reading ${filePath}:`, err.message);
   }
-  return DEFAULT_TAG_RULES;
+  return fallbackData;
 }
 
+function writeJsonFile(filePath, data) {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (err) {
+    console.error(`Error writing ${filePath}:`, err.message);
+    return false;
+  }
+}
+
+// Global Tag Rules Endpoints
 app.get('/api/tag-rules', (req, res) => {
-  res.json(getTagRules());
+  res.json(readJsonFile(RULES_FILE, DEFAULT_TAG_RULES));
 });
 
 app.post('/api/tag-rules', (req, res) => {
-  try {
-    const newRules = req.body;
-    fs.writeFileSync(RULES_FILE, JSON.stringify(newRules, null, 2));
-    res.json({ success: true, rules: newRules });
-  } catch (err) {
-    console.error("Error saving tag rules:", err);
-    res.status(500).json({ error: "Failed to save rules" });
+  const updatedRules = req.body;
+  if (!updatedRules || typeof updatedRules !== 'object') {
+    return res.status(400).json({ error: 'Invalid tag rules payload' });
+  }
+  const saved = writeJsonFile(RULES_FILE, updatedRules);
+  if (saved) {
+    res.json({ success: true, rules: updatedRules });
+  } else {
+    res.status(500).json({ error: 'Failed to write tag rules on server' });
   }
 });
-// --------------------------------
 
-async function getAllPages(path, collectionKey) {
+// Global Spend Settings Endpoints
+app.get('/api/spend-settings', (req, res) => {
+  res.json(readJsonFile(SPEND_FILE, DEFAULT_SPEND_SETTINGS));
+});
+
+app.post('/api/spend-settings', (req, res) => {
+  const updatedSpend = req.body;
+  if (!updatedSpend || typeof updatedSpend !== 'object') {
+    return res.status(400).json({ error: 'Invalid spend settings payload' });
+  }
+  const saved = writeJsonFile(SPEND_FILE, updatedSpend);
+  if (saved) {
+    res.json({ success: true, spendSettings: updatedSpend });
+  } else {
+    res.status(500).json({ error: 'Failed to write spend settings on server' });
+  }
+});
+
+async function getAllPages(pathStr, collectionKey) {
   const records = [];
   const limit = 100;
 
   for (let offset = 0; ; offset += limit) {
-    const separator = path.includes('?') ? '&' : '?';
+    const separator = pathStr.includes('?') ? '&' : '?';
     const response = await acApi.get(
-      `${path}${separator}limit=${limit}&offset=${offset}`
+      `${pathStr}${separator}limit=${limit}&offset=${offset}`
     );
 
     const page = response.data?.[collectionKey] || [];
@@ -189,7 +229,6 @@ app.get('/api/contacts', async (req, res) => {
     const contactCustomMap = {};
 
     allFieldValues.forEach((fieldValueRecord) => {
-      // ActiveCampaign v3 uses `value`; `val` is kept for compatibility.
       const value = fieldValueRecord?.value ?? fieldValueRecord?.val;
 
       if (
