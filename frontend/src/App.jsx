@@ -4,27 +4,26 @@ import {
   Search, Tag, BarChart2,
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
-  CheckCircle2, Clock, UserPlus, XCircle, Award, ChevronDown
+  CheckCircle2, Clock, UserPlus, XCircle, Award, FileText, ChevronRight
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
 
 const DEFAULT_TAG_RULES = {
-  MQL: ['FPF-Approved','FPF-Waitlisted'],
-  Hot: [''],
-  Warm: [''],
-  Cold: [''],
-  'Not Qualified': ['FPF-Rejected']
+  MQL: ['mql', 'approved', 'waitlist', 'mql-qualified'],
+  Hot: ['hot', 'demo-requested', 'high-intent', 'fpf-vip'],
+  Warm: ['warm', 'engaged', 'newsletter-click'],
+  Cold: ['cold', 'unengaged', 'prospect'],
+  'Not Qualified': ['rejected', 'unqualified', 'archived', 'no-fit', 'spam']
 };
 
 const DEFAULT_SPEND = {
-  'Google event Registrants': 0,
-  'Google Partner Referral': 0,
-  'Website Growth Audit Form': 0,
-  'Internal leads': 0
+  'Google event Registrants': 1500,
+  'Google Partner Referral': 800,
+  'Website Growth Audit Form': 500,
+  'Internal leads': 200
 };
 
-// Multi-Event Registry Configuration
 const EVENT_REGISTRY = [
   {
     id: 'google-ph-aug-2026',
@@ -37,18 +36,6 @@ const EVENT_REGISTRY = [
     rsvpConfirmedTag: 'RSVP-Confirmed',
     rsvpPlusOneTag: 'RSVP-Plus-one',
     spendKey: 'Google event Registrants'
-  },
-  {
-    id: 'google-partner-q4-2026',
-    name: 'Google Partner Summit - Q4 2026',
-    registeredTag: 'Reg-Google-Partner-Q4-2026',
-    approvedTag: 'FPF-Approved-Q4',
-    attendedTag: 'FPF-Attended-Q4',
-    approvedNoShowTag: 'FPF-Approved-NoShow-Q4',
-    rejectedTag: 'FPF-Rejected-Q4',
-    rsvpConfirmedTag: 'RSVP-Confirmed-Q4',
-    rsvpPlusOneTag: 'RSVP-Plus-one-Q4',
-    spendKey: 'Google Partner Referral'
   }
 ];
 
@@ -71,8 +58,9 @@ export default function App() {
   const [campaignStartDate, setCampaignStartDate] = useState('');
   const [campaignEndDate, setCampaignEndDate] = useState('');
 
-  // Event Selection State
+  // Event Selection & Modal States
   const [selectedEventId, setSelectedEventId] = useState('google-ph-aug-2026');
+  const [tagLeadModal, setTagLeadModal] = useState(null); // { title: string, cleanTag: string }
 
   const [tagRules, setTagRules] = useState(DEFAULT_TAG_RULES);
   const [spendSettings, setSpendSettings] = useState(DEFAULT_SPEND);
@@ -226,12 +214,11 @@ export default function App() {
     });
   }, [processedLeads, spendSettings]);
 
-  // Active Selected Event Configuration
   const activeEvent = useMemo(() => {
     return EVENT_REGISTRY.find(e => e.id === selectedEventId) || EVENT_REGISTRY[0];
   }, [selectedEventId]);
 
-  // Dynamic Event Analytics Engine
+  // Exact Tag Analytics Engine & Nurture Trackers
   const activeEventStats = useMemo(() => {
     let registered = 0;
     let approved = 0;
@@ -241,6 +228,14 @@ export default function App() {
     let rsvpConfirmed = 0;
     let rsvpPlusOne = 0;
     let eventMqls = 0;
+    let growthAuditCount = 0;
+
+    const resourceCounts = {
+      'FPF-Consumer Shift': 0,
+      'FPF-Data to Strategy': 0,
+      'FPF-Growth Blueprint': 0,
+      'FPF-All-Categories': 0
+    };
 
     const regTagClean = activeEvent.registeredTag.toLowerCase().replace(/[^a-z0-9]/g, '');
     const appTagClean = activeEvent.approvedTag.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -252,22 +247,28 @@ export default function App() {
 
     processedLeads.forEach(l => {
       const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
-      const isRegistered = cleanTags.some(t => t.includes(regTagClean));
+      const isRegistered = cleanTags.includes(regTagClean);
 
       if (isRegistered) {
         registered++;
         if (l.leadType === 'MQL') eventMqls++;
 
-        if (cleanTags.some(t => t.includes(noShowTagClean))) {
-          approvedNoShow++;
-        } else if (cleanTags.some(t => t.includes(appTagClean))) {
-          approved++;
-        }
+        // Strict tag comparisons to eliminate overlap bugs
+        if (cleanTags.includes(appTagClean)) approved++;
+        if (cleanTags.includes(attTagClean)) attended++;
+        if (cleanTags.includes(noShowTagClean)) approvedNoShow++;
+        if (cleanTags.includes(rejTagClean)) rejected++;
+        if (cleanTags.includes(rsvpConfClean)) rsvpConfirmed++;
+        if (cleanTags.includes(rsvpPlusClean)) rsvpPlusOne++;
 
-        if (cleanTags.some(t => t.includes(attTagClean))) attended++;
-        if (cleanTags.some(t => t.includes(rejTagClean))) rejected++;
-        if (cleanTags.some(t => t.includes(rsvpConfClean))) rsvpConfirmed++;
-        if (cleanTags.some(t => t.includes(rsvpPlusClean))) rsvpPlusOne++;
+        // Nurture Action 1
+        if (cleanTags.includes('fpfgrowthaudit')) growthAuditCount++;
+
+        // Nurture Action 2
+        if (cleanTags.includes('fpfconsumershift')) resourceCounts['FPF-Consumer Shift']++;
+        if (cleanTags.includes('fpfdatatostrategy')) resourceCounts['FPF-Data to Strategy']++;
+        if (cleanTags.includes('fpfgrowthblueprint')) resourceCounts['FPF-Growth Blueprint']++;
+        if (cleanTags.includes('fpfallcategories')) resourceCounts['FPF-All-Categories']++;
       }
     });
 
@@ -286,9 +287,21 @@ export default function App() {
       eventMqls,
       spend,
       costPerMql,
-      costPerRegistrant
+      costPerRegistrant,
+      growthAuditCount,
+      resourceCounts
     };
   }, [processedLeads, spendSettings, activeEvent]);
+
+  // Dynamic Contact Filter for Nurture Tag Modal
+  const modalLeads = useMemo(() => {
+    if (!tagLeadModal) return [];
+    const targetClean = tagLeadModal.cleanTag;
+    return processedLeads.filter(l => {
+      const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
+      return cleanTags.includes(targetClean);
+    });
+  }, [processedLeads, tagLeadModal]);
 
   const totalContacts = processedLeads.length;
   const totalAdSpend = useMemo(() => {
@@ -715,23 +728,22 @@ export default function App() {
           </div>
         )}
 
-        {/* EVENTS TAB WITH MULTI-EVENT DROPDOWN */}
+        {/* EVENTS TAB WITH NURTURE DRILL-DOWN */}
         {activeTab === 'events' && (
           <div className="space-y-8">
             
-            {/* Multi-Event Selector Header */}
+            {/* Header / Selector */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-wrap items-center justify-between gap-4">
               <div className="space-y-1.5 flex-1 min-w-[280px]">
                 <div className="flex items-center space-x-2">
-                  <span className="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">Event Intelligence</span>
+                  <span className="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">Featured Event</span>
                   <span className="text-xs text-slate-400 font-medium">Tag: {activeEvent.registeredTag}</span>
                 </div>
                 <h2 className="text-xl font-extrabold text-slate-900">{activeEvent.name}</h2>
-                <p className="text-xs text-slate-500">Live registrant tracking, approval verification, attendance counts, and cost efficiency</p>
+                <p className="text-xs text-slate-500">Live registrant tracking, strict approval verification, and email nurture response metrics</p>
               </div>
 
               <div className="flex items-center space-x-3">
-                {/* Event Dropdown Switcher */}
                 <div className="flex items-center space-x-2 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2">
                   <Calendar className="h-4 w-4 text-indigo-600" />
                   <span className="text-xs font-bold text-slate-700">Select Event:</span>
@@ -767,13 +779,13 @@ export default function App() {
               <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-200 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Approved</p>
                 <p className="text-2xl font-extrabold text-emerald-900 mt-1">{activeEventStats.approved}</p>
-                <p className="text-[11px] text-emerald-600 mt-0.5">{activeEvent.approvedTag}</p>
+                <p className="text-[11px] text-emerald-600 mt-0.5">Strict FPF-Approved tag</p>
               </div>
 
               <div className="p-4 rounded-xl border bg-indigo-50 border-indigo-200 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Attended</p>
                 <p className="text-2xl font-extrabold text-indigo-900 mt-1">{activeEventStats.attended}</p>
-                <p className="text-[11px] text-indigo-600 mt-0.5">{activeEvent.attendedTag}</p>
+                <p className="text-[11px] text-indigo-600 mt-0.5">FPF-Attended tag</p>
               </div>
 
               <div className="p-4 rounded-xl border bg-slate-100 border-slate-200 shadow-sm">
@@ -787,7 +799,7 @@ export default function App() {
                 <p className="text-2xl font-extrabold text-blue-900 mt-1">
                   {activeEventStats.registered > 0 ? `$${activeEventStats.costPerRegistrant.toFixed(2)}` : '$0.00'}
                 </p>
-                <p className="text-[11px] text-blue-600 mt-0.5">Spend / Total Registered</p>
+                <p className="text-[11px] text-blue-600 mt-0.5">Spend / Registered</p>
               </div>
 
               <div className="p-4 rounded-xl border bg-purple-50 border-purple-200 shadow-sm">
@@ -799,14 +811,13 @@ export default function App() {
               </div>
             </div>
 
-            {/* Registrant Status Breakdown & Visual RSVP Progress */}
+            {/* Registrant Status Breakdown & RSVP Visualizer */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               
-              {/* Breakdown Table */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden space-y-0">
                 <div className="px-6 py-4 border-b border-slate-200">
-                  <h3 className="text-base font-bold text-slate-900">Registrant Status Breakdown</h3>
-                  <p className="text-xs text-slate-500">Segmented count of registrants by qualification tags for {activeEvent.name}</p>
+                  <h3 className="text-base font-bold text-slate-900">Registrant Qualification Breakdown</h3>
+                  <p className="text-xs text-slate-500">Strict tag counts for {activeEvent.name}</p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm text-slate-600">
@@ -871,15 +882,13 @@ export default function App() {
                 </div>
               </div>
 
-              {/* RSVP & Visual Progress Card */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
                 <div className="border-b border-slate-100 pb-3">
-                  <h3 className="text-base font-bold text-slate-900">RSVP & Guest Confirmation Visualizer</h3>
+                  <h3 className="text-base font-bold text-slate-900">RSVP Confirmation Visualizer</h3>
                   <p className="text-xs text-slate-500">Visual breakdown of approved candidates vs confirmed RSVPs & plus ones</p>
                 </div>
 
                 <div className="space-y-5">
-                  {/* Approved Bar */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-bold text-slate-800 flex items-center space-x-1.5">
@@ -896,7 +905,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* RSVP Confirmed Bar */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-bold text-slate-800 flex items-center space-x-1.5">
@@ -911,12 +919,8 @@ export default function App() {
                         style={{ width: `${activeEventStats.approved > 0 ? Math.min(100, (activeEventStats.rsvpConfirmed / activeEventStats.approved) * 100) : 0}%` }}
                       />
                     </div>
-                    <p className="text-[10px] text-slate-400 text-right">
-                      {activeEventStats.approved > 0 ? ((activeEventStats.rsvpConfirmed / activeEventStats.approved) * 100).toFixed(1) : 0}% RSVP rate from Approved
-                    </p>
                   </div>
 
-                  {/* Plus One Bar */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-bold text-slate-800 flex items-center space-x-1.5">
@@ -931,9 +935,6 @@ export default function App() {
                         style={{ width: `${activeEventStats.rsvpConfirmed > 0 ? Math.min(100, (activeEventStats.rsvpPlusOne / activeEventStats.rsvpConfirmed) * 100) : 0}%` }}
                       />
                     </div>
-                    <p className="text-[10px] text-slate-400 text-right">
-                      {activeEventStats.rsvpPlusOne} additional seats allocated for guest passes
-                    </p>
                   </div>
                 </div>
 
@@ -945,6 +946,64 @@ export default function App() {
                 </div>
               </div>
 
+            </div>
+
+            {/* NEW: NURTURE RESPONSES & RESOURCE PREFERENCES SECTION */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+              <div className="border-b border-slate-100 pb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Email Nurture Responses & Resource Preferences</h3>
+                  <p className="text-xs text-slate-500">Interactive response tracking from post-event and pre-event email workflows. Click any category to view contact list.</p>
+                </div>
+                <span className="text-[10px] font-bold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-full">Interactive Drill-down</span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                {/* Nurture Action 1: Growth Audit Request */}
+                <button
+                  onClick={() => setTagLeadModal({
+                    title: 'Growth Audit Requests (Attendees)',
+                    cleanTag: 'fpfgrowthaudit'
+                  })}
+                  className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 hover:from-indigo-100 hover:to-indigo-200/50 p-4 rounded-xl border border-indigo-200 text-left transition space-y-2 group shadow-xs"
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Nurture Action #1</span>
+                    <ArrowUpRight className="h-4 w-4 text-indigo-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-xs leading-snug">Growth Audit Request</h4>
+                  <p className="text-2xl font-extrabold text-indigo-950">{activeEventStats.growthAuditCount}</p>
+                  <p className="text-[11px] text-indigo-600 font-medium">Tag: FPF-Growth-Audit</p>
+                </button>
+
+                {/* Nurture Action 2: Resource Preferences */}
+                {Object.entries(activeEventStats.resourceCounts).map(([catName, count]) => {
+                  const tagMap = {
+                    'FPF-Consumer Shift': 'fpfconsumershift',
+                    'FPF-Data to Strategy': 'fpfdatatostrategy',
+                    'FPF-Growth Blueprint': 'fpfgrowthblueprint',
+                    'FPF-All-Categories': 'fpfallcategories'
+                  };
+                  return (
+                    <button
+                      key={catName}
+                      onClick={() => setTagLeadModal({
+                        title: `Resource Request: ${catName}`,
+                        cleanTag: tagMap[catName]
+                      })}
+                      className="bg-slate-50 hover:bg-slate-100 p-4 rounded-xl border border-slate-200 text-left transition space-y-2 group shadow-xs"
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Resource Request</span>
+                        <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-xs leading-snug truncate">{catName}</h4>
+                      <p className="text-2xl font-extrabold text-slate-900">{count}</p>
+                      <p className="text-[11px] text-indigo-600 font-medium truncate">Tag: {catName}</p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
           </div>
@@ -1380,7 +1439,76 @@ export default function App() {
 
       </main>
 
-      {/* VIEW DETAILS MODAL */}
+      {/* NURTURE RESPONSE DRILL-DOWN MODAL */}
+      {tagLeadModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">{tagLeadModal.title}</h3>
+                <p className="text-xs text-slate-500">Showing {modalLeads.length} contacts matching this nurture response tag</p>
+              </div>
+              <button
+                onClick={() => setTagLeadModal(null)}
+                className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-500 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {modalLeads.length === 0 ? (
+                <div className="text-center py-8 text-xs text-slate-400 italic">
+                  No contacts found possessing this specific tag.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <table className="w-full text-left text-xs text-slate-600">
+                    <thead className="bg-slate-50 font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-2.5">Contact Name</th>
+                        <th className="px-4 py-2.5">Email</th>
+                        <th className="px-4 py-2.5">Company</th>
+                        <th className="px-4 py-2.5">Lead Type</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {modalLeads.map(lead => (
+                        <tr key={lead.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-2.5 font-bold text-slate-900">{lead.fullName}</td>
+                          <td className="px-4 py-2.5 text-slate-500">{lead.email}</td>
+                          <td className="px-4 py-2.5 font-medium text-slate-700">{lead.company}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${
+                              lead.leadType === 'Hot' ? 'bg-red-100 text-red-800' :
+                              lead.leadType === 'Warm' ? 'bg-amber-100 text-amber-800' :
+                              lead.leadType === 'MQL' ? 'bg-indigo-100 text-indigo-800' :
+                              'bg-blue-100 text-blue-800'
+                            }`}>
+                              {lead.leadType}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 text-right">
+              <button
+                onClick={() => setTagLeadModal(null)}
+                className="px-4 py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-900 transition"
+              >
+                Close List
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW CONTACT DETAILS MODAL */}
       {selectedLead && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full max-h-[85vh] overflow-y-auto">
