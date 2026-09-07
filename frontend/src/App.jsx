@@ -156,7 +156,8 @@ setLastSyncTime(new Date().toLocaleTimeString());
         l.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         l.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         l.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        l.leadOwner?.toLowerCase().includes(searchQuery.toLowerCase());
+        l.leadOwner?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+l.leadSource?.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesType = filterLeadType === 'All' || l.leadType === filterLeadType;
       const matchesPipeline = filterPipeline === 'All' || l.pipelineStage === filterPipeline;
@@ -442,13 +443,19 @@ setLastSyncTime(new Date().toLocaleTimeString());
                 <table className="w-full text-left text-sm text-slate-600">
                   <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
-                      <th className="px-6 py-3">Contact</th>
-                      <th className="px-6 py-3">Company (%COMPANY%)</th>
-                      <th className="px-6 py-3">Lead Owner (%LEAD_OWNER%)</th>
-                      <th className="px-6 py-3">Lead Type</th>
-                      <th className="px-6 py-3">Pipeline Stage (%PIPELINE_STAGE%)</th>
-                      <th className="px-6 py-3">Engagement</th>
-                      <th className="px-6 py-3 text-right">Action</th>
+                   <th className="px-6 py-3">Contact</th>
+<th className="px-6 py-3">Company</th>
+<th className="px-6 py-3">Lead Owner</th>
+                      <td className="px-6 py-4">
+  <span className="text-xs text-slate-700 font-medium">
+    {lead.leadSource || 'Unspecified'}
+  </span>
+</td>
+<th className="px-6 py-3">Lead Source</th>
+<th className="px-6 py-3">Lead Type</th>
+<th className="px-6 py-3">Pipeline Stage</th>
+<th className="px-6 py-3">Engagement</th>
+<th className="px-6 py-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
