@@ -124,7 +124,7 @@ export default function App() {
     } catch (err) {
       console.error('Fetch error:', err);
       setSyncStatus('Error');
-    } font-sans finally {
+    } finally {
       setLoading(false);
     }
   };
@@ -477,7 +477,7 @@ export default function App() {
 
     return actions
       .sort((a, b) => b.rawDate - a.rawDate)
-      .slice(0, 4); // LIMITED TO MAXIMUM 4 ITEMS
+      .slice(0, 4);
   }, [processedLeads]);
 
   const handleSendMessage = (textToSend) => {
@@ -900,7 +900,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* LIVE ENGAGEMENT STREAM (MAX 4 LATEST ITEMS) */}
+              {/* LIVE ENGAGEMENT STREAM (LIMITED TO 4) */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center space-x-2">
@@ -1010,7 +1010,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* TOP PERFORMING EMAIL SUBJECT LINES SECTION (PLACED AT THE VERY BOTTOM OF OVERVIEW) */}
+            {/* TOP PERFORMING EMAIL SUBJECT LINES SECTION (PLACED AT BOTTOM) */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <div>
