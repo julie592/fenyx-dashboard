@@ -5,7 +5,7 @@ import {
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
   CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
-  MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, TrendingUp, Sun
+  MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, Sun
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
@@ -386,41 +386,6 @@ export default function App() {
 
     return { dayCounts, timeSlots, totalRecordedOpens };
   }, [processedLeads]);
-
-  // TOP PERFORMING SUBJECT LINES ENGINE
-  const topSubjectLines = useMemo(() => {
-    if (!campaigns || !campaigns.length) return [];
-
-    return [...campaigns]
-      .map(c => {
-        const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 0;
-        const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
-        const openRate = sendAmt > 0 ? (uniqueOpens / sendAmt) * 100 : 0;
-        
-        let headline = c.subject || c.subject_line || c.campaignMessage?.subject || c.message?.subject;
-
-        if (!headline || headline === c.name) {
-          if (c.name && c.name.includes(':')) {
-            const parts = c.name.split(':');
-            headline = parts.slice(1).join(':').trim();
-          } else {
-            headline = c.name;
-          }
-        }
-
-        return {
-          id: c.id,
-          subject: headline || c.name,
-          campaignName: c.name,
-          sendAmt,
-          uniqueOpens,
-          openRate
-        };
-      })
-      .filter(item => item.sendAmt > 0 && item.subject)
-      .sort((a, b) => b.openRate - a.openRate)
-      .slice(0, 5);
-  }, [campaigns]);
 
   // REAL-TIME ACTIVITY FEED: MAX 4 LATEST ITEMS
   const liveActivityFeed = useMemo(() => {
@@ -900,7 +865,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* LIVE ENGAGEMENT STREAM (LIMITED TO 4) */}
+              {/* LIVE ENGAGEMENT STREAM (LIMITED TO MAX 4 ITEMS) */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center space-x-2">
@@ -1007,54 +972,6 @@ export default function App() {
                     })}
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* TOP PERFORMING EMAIL SUBJECT LINES SECTION (PLACED AT BOTTOM) */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Top Performing Email Subject Lines</h3>
-                  <p className="text-xs text-slate-500">Highest unique open rates across broadcast and sequence campaigns</p>
-                </div>
-                <span className="text-[10px] font-bold uppercase bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center space-x-1">
-                  <Award className="h-3 w-3 text-emerald-600" />
-                  <span>Open Rate Champions</span>
-                </span>
-              </div>
-
-              <div className="p-6">
-                {topSubjectLines.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">No campaign subject line metrics recorded yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {topSubjectLines.map((item, idx) => (
-                      <div key={item.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between hover:bg-slate-100/60 transition">
-                        <div className="flex items-center space-x-3 min-w-0 pr-4">
-                          <div className="flex-shrink-0 w-7 h-7 bg-indigo-100 text-indigo-800 font-extrabold text-xs rounded-lg flex items-center justify-center border border-indigo-200">
-                            #{idx + 1}
-                          </div>
-                          <div className="truncate space-y-0.5">
-                            <p className="font-extrabold text-slate-900 text-xs truncate leading-snug">
-                              Subject: "{item.subject}"
-                            </p>
-                            <p className="text-[11px] text-slate-500 truncate">
-                              Campaign Name: <span className="font-semibold text-slate-700">{item.campaignName}</span> • Total Sent: {item.sendAmt.toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="text-right flex-shrink-0 pl-2">
-                          <div className="text-xs font-extrabold text-emerald-600 flex items-center justify-end space-x-1">
-                            <TrendingUp className="h-3 w-3" />
-                            <span>{item.openRate.toFixed(1)}%</span>
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-medium">{item.uniqueOpens.toLocaleString()} unique opens</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
 
