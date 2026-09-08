@@ -11,9 +11,10 @@ import {
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
 
 const DEFAULT_TAG_RULES = {
-  MQL: ['FPF-Approved', 'FPF-Waitlisted'],
+  MQL: ['FPF-Approved', 'FPF-Waitlist'],
   Hot: [''],
-  Warm: ['Growth Review - Coming Soon Form'],
+  Warm: ['Growth Review - Fenyx Website',	
+'Growth Review - In Person'],
   Cold: [''],
   'Not Qualified': ['FPF-Rejected']
 };
