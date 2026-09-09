@@ -190,12 +190,11 @@ export default function App() {
     });
   }, [rawContacts, tagRules]);
 
-  // DEALS TAB DATA FILTER (PIPELINE STAGE IS NOT BLANK)
+  // DEALS TAB DATA FILTER
   const dealLeads = useMemo(() => {
     return processedLeads.filter(l => l.pipelineStage && l.pipelineStage !== '—' && l.pipelineStage.trim() !== '');
   }, [processedLeads]);
 
-  // PIPELINE STAGES VISUALIZATION BREAKDOWN
   const pipelineStageCounts = useMemo(() => {
     const counts = {};
     PIPELINE_STAGES.forEach(stg => counts[stg] = 0);
@@ -660,7 +659,6 @@ export default function App() {
   const openSurveyModal = (lead) => {
     setSelectedSurveyLead(lead);
     
-    // Extract populated field values or set defaults
     const getVal = (key) => {
       const cleanK = key.toLowerCase().replace(/[^a-z0-9]/g, '');
       return lead[cleanK] || lead.custom?.[cleanK] || 'Not Specified';
@@ -1216,13 +1214,14 @@ export default function App() {
                       <th className="px-6 py-3">Lead Source</th>
                       <th className="px-6 py-3">Lead Owner</th>
                       <th className="px-6 py-3">Lead Type</th>
+                      <th className="px-6 py-3">Pipeline Stage</th>
                       <th className="px-6 py-3 text-right">Lead Qualifier Survey</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {dealLeads.length === 0 ? (
                       <tr>
-                        <td colSpan="8" className="px-6 py-8 text-center text-xs text-slate-400 italic">
+                        <td colSpan="9" className="px-6 py-8 text-center text-xs text-slate-400 italic">
                           No active deal contacts found with a non-blank pipeline stage.
                         </td>
                       </tr>
@@ -1243,6 +1242,11 @@ export default function App() {
                               'bg-blue-100 text-blue-800'
                             }`}>
                               {lead.leadType}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-md border border-slate-200">
+                              {lead.pipelineStage}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
@@ -1992,7 +1996,6 @@ export default function App() {
 
             <div className="p-6 overflow-y-auto flex-1 space-y-5 text-xs">
               
-              {/* Field 1 */}
               <div className="space-y-1">
                 <label className="block font-bold text-slate-800">Target go-live date for this project?</label>
                 <p className="text-[10px] text-slate-400 font-mono">%TARGET_GOLIVE_DATE_FOR_THIS_PROJECT%</p>
@@ -2001,7 +2004,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Field 2 */}
               <div className="space-y-1">
                 <label className="block font-bold text-slate-800">What is the current budget status for this initiative?</label>
                 <p className="text-[10px] text-slate-400 font-mono">%WHAT_IS_THE_CURRENT_BUDGET_STATUS_FOR_THIS_INITIATIVE%</p>
@@ -2010,7 +2012,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Field 3 */}
               <div className="space-y-1">
                 <label className="block font-bold text-slate-800">What is the lead's role in the decision?</label>
                 <p className="text-[10px] text-slate-400 font-mono">%WHAT_IS_THE_LEADS_ROLE_IN_THE_DECISION%</p>
@@ -2019,7 +2020,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Field 4 */}
               <div className="space-y-1">
                 <label className="block font-bold text-slate-800">How important is solving this problem to the business right now?</label>
                 <p className="text-[10px] text-slate-400 font-mono">%HOW_IMPORTANT_IS_SOLVING_THIS_PROBLEM_TO_THE_BUSINESS_RIGHT_NOW%</p>
@@ -2028,7 +2028,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Field 5 */}
               <div className="space-y-1">
                 <label className="block font-bold text-slate-800">What business outcome are they trying to achieve?</label>
                 <p className="text-[10px] text-slate-400 font-mono">%WHAT_BUSINESS_OUTCOME_ARE_THEY_TRYING_TO_ACHIEVE%</p>
@@ -2037,7 +2036,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Field 6 */}
               <div className="space-y-1">
                 <label className="block font-bold text-slate-800">What specific target or KPI are they benchmarking against?</label>
                 <p className="text-[10px] text-slate-400 font-mono">%WHAT_SPECIFIC_TARGET_OR_KPI_ARE_THEY_BENCHMARKING_AGAINST%</p>
@@ -2046,7 +2044,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Field 7 */}
               <div className="space-y-1">
                 <label className="block font-bold text-slate-800">Does the project align with Fenyx's solutions?</label>
                 <p className="text-[10px] text-slate-400 font-mono">%DOES_THE_PROJECT_ALIGN_WITH_FENYXS_SOLUTIONS%</p>
@@ -2056,7 +2053,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Field 8 */}
               <div className="space-y-1">
                 <label className="block font-bold text-slate-800">What Business Challenges Are You Facing?</label>
                 <p className="text-[10px] text-slate-400 font-mono">%WHAT_BUSINESS_CHALLENGES_ARE_YOU_FACING%</p>
@@ -2065,7 +2061,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Field 9 */}
               <div className="space-y-1">
                 <label className="block font-bold text-slate-800">Notes</label>
                 <p className="text-[10px] text-slate-400 font-mono">%NOTES%</p>
