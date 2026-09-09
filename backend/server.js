@@ -43,56 +43,69 @@ const DEFAULT_SPEND_SETTINGS = {
   'Internal leads': 0
 };
 
-// Global memory cache to prevent cold-start resets
+// Memory Cache
 const memoryCache = {
   tagRules: { ...DEFAULT_TAG_RULES },
   spendSettings: { ...DEFAULT_SPEND_SETTINGS }
 };
 
-if (MONGO_URI) {
-  mongoose.connect(MONGO_URI)
-    .then(async () => {
-      console.log('✅ Connected to MongoDB Atlas!');
-      // Hydrate memory cache from DB on startup
-      try {
-        const rulesDoc = await Config.findOne({ key: 'tagRules' });
-        if (rulesDoc?.data) memoryCache.tagRules = rulesDoc.data;
+// Await DB connection on cold starts to prevent fallback resets
+async function ensureDbConnected() {
+  if (mongoose.connection.readyState !== 1 && MONGO_URI) {
+    try {
+      await mongoose.connect(MONGO_URI);
+      console.log('✅ Connected/Reconnected to MongoDB Atlas!');
+    } catch (err) {
+      console.error('❌ MongoDB Connection Error:', err.message);
+    }
+  }
+}
 
-        const spendDoc = await Config.findOne({ key: 'spendSettings' });
-        if (spendDoc?.data) memoryCache.spendSettings = spendDoc.data;
-      } catch (e) {
-        console.error('Cache hydration error:', e.message);
-      }
-    })
-    .catch(err => console.error('❌ MongoDB Connection Error:', err.message));
+if (MONGO_URI) {
+  ensureDbConnected().then(async () => {
+    try {
+      const rulesDoc = await Config.findOne({ key: 'tagRules' });
+      if (rulesDoc?.data) memoryCache.tagRules = rulesDoc.data;
+
+      const spendDoc = await Config.findOne({ key: 'spendSettings' });
+      if (spendDoc?.data) memoryCache.spendSettings = spendDoc.data;
+    } catch (e) {
+      console.error('Cache hydration error:', e.message);
+    }
+  });
 } else {
   console.warn('⚠️ MONGODB_URI is not set in environment variables.');
 }
 
 async function getConfig(key, fallback) {
+  await ensureDbConnected();
   if (mongoose.connection.readyState === 1) {
     try {
-      const record = await Config.findOne({ key });
-      if (record?.data) {
+      let record = await Config.findOne({ key });
+      if (record?.data && Object.keys(record.data).length > 0) {
+        memoryCache[key] = record.data;
+        return record.data;
+      } else if (!record) {
+        // Create initial DB record only if it does not exist at all
+        record = await Config.create({ key, data: fallback });
         memoryCache[key] = record.data;
         return record.data;
       }
-      await Config.create({ key, data: fallback });
-      return fallback;
     } catch (err) {
-      console.error(`Error reading ${key}:`, err.message);
+      console.error(`Error reading ${key} from MongoDB:`, err.message);
     }
   }
   return memoryCache[key] || fallback;
 }
 
 async function saveConfig(key, data) {
-  memoryCache[key] = data; // Instant cache update
+  memoryCache[key] = data; // Immediate in-memory sync
+  await ensureDbConnected();
   if (mongoose.connection.readyState === 1) {
     try {
       await Config.findOneAndUpdate(
         { key },
-        { data },
+        { $set: { data } },
         { upsert: true, new: true, runValidators: true }
       );
       console.log(`✅ Saved ${key} to MongoDB Atlas`);
@@ -145,8 +158,8 @@ app.get('/api/contacts', async (req, res) => {
   try {
     const fieldMetaMap = {};
     try {
-      const fieldsRes = await acApi.get('/fields?limit=100');
-      (fieldsRes.data?.fields || []).forEach((field) => {
+      const fields = await getAllPages('/fields', 'fields');
+      fields.forEach((field) => {
         if (!field.id) return;
         fieldMetaMap[field.id] = {
           cleanTitle: cleanKey(field.title), 
@@ -183,8 +196,13 @@ app.get('/api/contacts', async (req, res) => {
 
     const contactCustomMap = {};
     allFieldValues.forEach((fv) => {
-      const value = fv?.value ?? fv?.val;
+      let value = fv?.value ?? fv?.val;
       if (!fv?.contact || !fv?.field || value === undefined || value === null || value === '') return;
+      
+      if (typeof value === 'string') {
+        value = value.replace(/^\|\||\|\|$/g, '').replace(/\|\|/g, ', ').trim();
+      }
+
       if (!contactCustomMap[fv.contact]) contactCustomMap[fv.contact] = {};
       const fieldMeta = fieldMetaMap[fv.field];
       if (fieldMeta?.cleanPertag) contactCustomMap[fv.contact][fieldMeta.cleanPertag] = value;
@@ -229,7 +247,9 @@ app.get('/api/contacts', async (req, res) => {
       const getVal = (...searchKeys) => {
         for (const key of searchKeys) {
           const normalizedKey = cleanKey(key);
-          if (custom[normalizedKey] && custom[normalizedKey] !== '') return custom[normalizedKey];
+          if (custom[normalizedKey] && custom[normalizedKey] !== '' && custom[normalizedKey] !== '—') {
+            return custom[normalizedKey];
+          }
         }
         return '—';
       };
@@ -241,9 +261,7 @@ app.get('/api/contacts', async (req, res) => {
       const roleVal = getVal('role', 'jobtitle', 'title', 'position');
       const ownerVal = getVal('leadowner', 'owner', 'assignedto', 'salesrep');
       const sourceVal = getVal('leadsource', 'source', 'utmsource', 'channel') !== '—' ? getVal('leadsource', 'source', 'utmsource', 'channel') : 'Unspecified';
-
-      // STRICT PIPELINE STAGE MAPPING - REMOVED FALLBACKS
-      const stageVal = getVal('pipelinestage');
+      const stageVal = getVal('pipelinestage', 'pipeline_stage');
 
       const totalEmailsSent = automationData.completed * 2 + (automationData.active > 0 ? 1 : 0) + 1;
       const emailsOpened = Math.min(totalEmailsSent, rawTags.filter((tag) => /opened/i.test(tag)).length || 1);
@@ -269,7 +287,7 @@ app.get('/api/contacts', async (req, res) => {
         automationsEntered: automationData.total, 
         activeAutomations: automationData.active, 
         completedAutomations: automationData.completed,
-        custom // THIS EXPOSES ALL THE SURVEY FIELDS TO THE FRONTEND
+        custom
       };
     });
 
