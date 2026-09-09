@@ -19,7 +19,7 @@ const DEFAULT_TAG_RULES = {
 };
 
 const DEFAULT_SPEND = {
-  'Google event Registrants': 0,
+  'Google event Registrants': 4,760.39,
   'Google Partner Referral': 0,
   'Website Growth Audit Form': 0,
   'Internal leads': 0
