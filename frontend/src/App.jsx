@@ -40,17 +40,18 @@ const EVENT_REGISTRY = [
   }
 ];
 
+// EXACT PIPELINE STAGES MATCHING ACTIVECAMPAIGN DROPDOWN OPTIONS
 const PIPELINE_STAGES = [
   'Outreach Sent',
+  'Discovery Call Booked',
   'In Contact',
-  'Follow Up 1',
-  'Follow Up 2',
-  'Discover Call Booked',
-  'Proposal Sent',
+  'Follow Up - 1',
+  'Follow Up - 2',
   'For Growth Audit Presentation',
+  'Proposal Sent',
   'Won',
   'Lost',
-  'No Response/No Show'
+  'No Response'
 ];
 
 export default function App() {
@@ -195,15 +196,19 @@ export default function App() {
     return processedLeads.filter(l => l.pipelineStage && l.pipelineStage !== '—' && l.pipelineStage.trim() !== '');
   }, [processedLeads]);
 
+  // PIPELINE STAGES VISUALIZATION BREAKDOWN WITH ROBUST NORMALIZED MATCHING
   const pipelineStageCounts = useMemo(() => {
     const counts = {};
     PIPELINE_STAGES.forEach(stg => counts[stg] = 0);
 
+    const cleanStr = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
     dealLeads.forEach(lead => {
-      const stg = lead.pipelineStage;
-      const matched = PIPELINE_STAGES.find(s => s.toLowerCase() === stg.toLowerCase());
-      if (matched) counts[matched]++;
-      else if (counts[stg] !== undefined) counts[stg]++;
+      const stgClean = cleanStr(lead.pipelineStage);
+      const matched = PIPELINE_STAGES.find(s => cleanStr(s) === stgClean);
+      if (matched) {
+        counts[matched]++;
+      }
     });
 
     return counts;
@@ -752,7 +757,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* RE-ARRANGED TABS WITH DEALS TAB */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
@@ -1165,7 +1169,7 @@ export default function App() {
           </div>
         )}
 
-        {/* DEALS TAB (NEW) */}
+        {/* DEALS TAB */}
         {activeTab === 'deals' && (
           <div className="space-y-8">
             
@@ -1196,7 +1200,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* DEALS CONTACT TABLE */}
+            {/* DEALS CONTACT TABLE WITH PIPELINE STAGE COLUMN */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Active Deals List</h3>
