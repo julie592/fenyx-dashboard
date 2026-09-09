@@ -40,7 +40,6 @@ const EVENT_REGISTRY = [
   }
 ];
 
-// EXACT PIPELINE STAGES MATCHING ACTIVECAMPAIGN DROPDOWN OPTIONS
 const PIPELINE_STAGES = [
   'Outreach Sent',
   'Discovery Call Booked',
@@ -124,12 +123,12 @@ export default function App() {
 
       if (tagRulesRes.status === 'fulfilled' && tagRulesRes.value.ok) {
         const data = await tagRulesRes.value.json();
-        setTagRules(data);
+        if (data && Object.keys(data).length > 0) setTagRules(data);
       }
 
       if (spendRes.status === 'fulfilled' && spendRes.value.ok) {
         const data = await spendRes.value.json();
-        setSpendSettings(data);
+        if (data && Object.keys(data).length > 0) setSpendSettings(data);
       }
 
       const failedRequests = [contactsRes, campaignsRes, automationsRes].filter(
@@ -191,12 +190,10 @@ export default function App() {
     });
   }, [rawContacts, tagRules]);
 
-  // DEALS TAB DATA FILTER
   const dealLeads = useMemo(() => {
     return processedLeads.filter(l => l.pipelineStage && l.pipelineStage !== '—' && l.pipelineStage.trim() !== '');
   }, [processedLeads]);
 
-  // PIPELINE STAGES VISUALIZATION BREAKDOWN WITH ROBUST NORMALIZED MATCHING
   const pipelineStageCounts = useMemo(() => {
     const counts = {};
     PIPELINE_STAGES.forEach(stg => counts[stg] = 0);
@@ -676,7 +673,7 @@ export default function App() {
       problemImportance: getVal('how_important_is_solving_this_problem_to_the_business_right_now'),
       businessOutcome: getVal('what_business_outcome_are_they_trying_to_achieve'),
       targetKpi: getVal('what_specific_target_or_kpi_are_they_benchmarking_against'),
-      alignsWithFenyx: getVal('does_the_project_align_with_fenyxs_solutions') === 'Yes' || getVal('does_the_project_align_with_fenyxs_solutions') === true,
+      alignsWithFenyx: getVal('does_the_project_align_with_fenyxs_solutions') === 'Yes' || getVal('does_the_project_align_with_fenyxs_solutions') === true || String(getVal('does_the_project_align_with_fenyxs_solutions')).toLowerCase().includes('yes'),
       businessChallenges: getVal('what_business_challenges_are_you_facing'),
       notes: getVal('notes')
     });
