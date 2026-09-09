@@ -43,7 +43,7 @@ const DEFAULT_SPEND_SETTINGS = {
   'Internal leads': 0
 };
 
-// Global memory cache
+// Global memory cache to prevent cold-start resets
 const memoryCache = {
   tagRules: { ...DEFAULT_TAG_RULES },
   spendSettings: { ...DEFAULT_SPEND_SETTINGS }
@@ -53,6 +53,7 @@ if (MONGO_URI) {
   mongoose.connect(MONGO_URI)
     .then(async () => {
       console.log('✅ Connected to MongoDB Atlas!');
+      // Hydrate memory cache from DB on startup
       try {
         const rulesDoc = await Config.findOne({ key: 'tagRules' });
         if (rulesDoc?.data) memoryCache.tagRules = rulesDoc.data;
@@ -86,7 +87,7 @@ async function getConfig(key, fallback) {
 }
 
 async function saveConfig(key, data) {
-  memoryCache[key] = data;
+  memoryCache[key] = data; // Instant cache update
   if (mongoose.connection.readyState === 1) {
     try {
       await Config.findOneAndUpdate(
@@ -148,8 +149,10 @@ app.get('/api/contacts', async (req, res) => {
       (fieldsRes.data?.fields || []).forEach((field) => {
         if (!field.id) return;
         fieldMetaMap[field.id] = {
-          cleanTitle: cleanKey(field.title), cleanPertag: cleanKey(field.perstag || field.pertag),
-          title: field.title, pertag: field.perstag || field.pertag
+          cleanTitle: cleanKey(field.title), 
+          cleanPertag: cleanKey(field.perstag || field.pertag),
+          title: field.title, 
+          pertag: field.perstag || field.pertag
         };
       });
     } catch (err) { console.error('Field fetching error:', err.message); }
@@ -237,19 +240,36 @@ app.get('/api/contacts', async (req, res) => {
 
       const roleVal = getVal('role', 'jobtitle', 'title', 'position');
       const ownerVal = getVal('leadowner', 'owner', 'assignedto', 'salesrep');
-      const stageVal = getVal('pipelinestage', 'stage', 'dealstage', 'status');
       const sourceVal = getVal('leadsource', 'source', 'utmsource', 'channel') !== '—' ? getVal('leadsource', 'source', 'utmsource', 'channel') : 'Unspecified';
+
+      // STRICT PIPELINE STAGE MAPPING - REMOVED FALLBACKS
+      const stageVal = getVal('pipelinestage');
 
       const totalEmailsSent = automationData.completed * 2 + (automationData.active > 0 ? 1 : 0) + 1;
       const emailsOpened = Math.min(totalEmailsSent, rawTags.filter((tag) => /opened/i.test(tag)).length || 1);
       const linksClicked = Math.min(emailsOpened, rawTags.filter((tag) => /clicked/i.test(tag)).length || 0);
 
       return {
-        id: `ac-${contact.id}`, firstName: contact.firstName || '', lastName: contact.lastName || '',
-        fullName: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email, email: contact.email,
-        company: companyVal, role: roleVal, leadOwner: ownerVal, pipelineStage: stageVal, leadSource: sourceVal,
-        dateAdded: contact.cdate ? contact.cdate.split('T')[0] : '2026-08-01', rawTags, tagDates, emailsSent: totalEmailsSent,
-        emailsOpened, linksClicked, automationsEntered: automationData.total, activeAutomations: automationData.active, completedAutomations: automationData.completed
+        id: `ac-${contact.id}`, 
+        firstName: contact.firstName || '', 
+        lastName: contact.lastName || '',
+        fullName: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email, 
+        email: contact.email,
+        company: companyVal, 
+        role: roleVal, 
+        leadOwner: ownerVal, 
+        pipelineStage: stageVal, 
+        leadSource: sourceVal,
+        dateAdded: contact.cdate ? contact.cdate.split('T')[0] : '2026-08-01', 
+        rawTags, 
+        tagDates, 
+        emailsSent: totalEmailsSent,
+        emailsOpened, 
+        linksClicked, 
+        automationsEntered: automationData.total, 
+        activeAutomations: automationData.active, 
+        completedAutomations: automationData.completed,
+        custom // THIS EXPOSES ALL THE SURVEY FIELDS TO THE FRONTEND
       };
     });
 
