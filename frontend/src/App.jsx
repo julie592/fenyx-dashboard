@@ -1,26 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, RefreshCw, Layers, Mail, 
-  Search, Tag, BarChart2,
+  Search, Tag, BarChart2, Briefcase,
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
   CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
-  MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, Sun
+  MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, TrendingUp, Sun, FileText, CheckSquare
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
 
 const DEFAULT_TAG_RULES = {
-  MQL: ['FPF-Approved', 'FPF-Waitlist'],
+  MQL: ['FPF-Approved', 'FPF-Waitlisted'],
   Hot: [''],
-  Warm: ['Growth Review - Fenyx Website',	
-'Growth Review - In Person'],
+  Warm: ['Growth Review - Coming Soon Form'],
   Cold: [''],
   'Not Qualified': ['FPF-Rejected']
 };
 
 const DEFAULT_SPEND = {
-  'Google event Registrants': 4,760.39,
+  'Google event Registrants': 0,
   'Google Partner Referral': 0,
   'Website Growth Audit Form': 0,
   'Internal leads': 0
@@ -41,6 +40,19 @@ const EVENT_REGISTRY = [
   }
 ];
 
+const PIPELINE_STAGES = [
+  'Outreach Sent',
+  'In Contact',
+  'Follow Up 1',
+  'Follow Up 2',
+  'Discover Call Booked',
+  'Proposal Sent',
+  'For Growth Audit Presentation',
+  'Won',
+  'Lost',
+  'No Response/No Show'
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
@@ -48,6 +60,9 @@ export default function App() {
   const [campaigns, setCampaigns] = useState([]);
   const [automations, setAutomations] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
+  const [selectedSurveyLead, setSelectedSurveyLead] = useState(null);
+  const [surveyFormData, setSurveyFormData] = useState({});
+  
   const [syncStatus, setSyncStatus] = useState('Standby');
   const [lastSyncTime, setLastSyncTime] = useState(null);
   
@@ -71,7 +86,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([
     {
       sender: 'gemini',
-      text: 'Hello! I am your Fenyx AI Assistant. Ask me about contacts, conversions, events, or spend metrics!'
+      text: 'Hello! I am your Fenyx AI Assistant. Ask me about contacts, deals pipeline, conversions, or spend metrics!'
     }
   ]);
 
@@ -174,6 +189,26 @@ export default function App() {
       return { ...c, leadType: detectedType };
     });
   }, [rawContacts, tagRules]);
+
+  // DEALS TAB DATA FILTER (PIPELINE STAGE IS NOT BLANK)
+  const dealLeads = useMemo(() => {
+    return processedLeads.filter(l => l.pipelineStage && l.pipelineStage !== '—' && l.pipelineStage.trim() !== '');
+  }, [processedLeads]);
+
+  // PIPELINE STAGES VISUALIZATION BREAKDOWN
+  const pipelineStageCounts = useMemo(() => {
+    const counts = {};
+    PIPELINE_STAGES.forEach(stg => counts[stg] = 0);
+
+    dealLeads.forEach(lead => {
+      const stg = lead.pipelineStage;
+      const matched = PIPELINE_STAGES.find(s => s.toLowerCase() === stg.toLowerCase());
+      if (matched) counts[matched]++;
+      else if (counts[stg] !== undefined) counts[stg]++;
+    });
+
+    return counts;
+  }, [dealLeads]);
 
   const leadTypeCounts = useMemo(() => {
     const counts = { Hot: 0, Warm: 0, MQL: 0, Cold: 0, 'Not Qualified': 0 };
@@ -345,7 +380,6 @@ export default function App() {
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
   }, [processedLeads]);
 
-  // EMAIL OPEN DAY AND TIME TREND ENGINE
   const openTimeTrends = useMemo(() => {
     const dayCounts = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 };
     const timeSlots = {
@@ -388,7 +422,6 @@ export default function App() {
     return { dayCounts, timeSlots, totalRecordedOpens };
   }, [processedLeads]);
 
-  // REAL-TIME ACTIVITY FEED: MAX 4 LATEST ITEMS
   const liveActivityFeed = useMemo(() => {
     if (!processedLeads.length) return [];
     
@@ -624,6 +657,28 @@ export default function App() {
     saveSpendToBackend(cleanSpend);
   };
 
+  const openSurveyModal = (lead) => {
+    setSelectedSurveyLead(lead);
+    
+    // Extract populated field values or set defaults
+    const getVal = (key) => {
+      const cleanK = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return lead[cleanK] || lead.custom?.[cleanK] || 'Not Specified';
+    };
+
+    setSurveyFormData({
+      targetGoLive: getVal('target_golive_date_for_this_project'),
+      budgetStatus: getVal('what_is_the_current_budget_status_for_this_initiative'),
+      decisionRole: getVal('what_is_the_leads_role_in_the_decision'),
+      problemImportance: getVal('how_important_is_solving_this_problem_to_the_business_right_now'),
+      businessOutcome: getVal('what_business_outcome_are_they_trying_to_achieve'),
+      targetKpi: getVal('what_specific_target_or_kpi_are_they_benchmarking_against'),
+      alignsWithFenyx: getVal('does_the_project_align_with_fenyxs_solutions') === 'Yes' || getVal('does_the_project_align_with_fenyxs_solutions') === true,
+      businessChallenges: getVal('what_business_challenges_are_you_facing'),
+      notes: getVal('notes')
+    });
+  };
+
   const renderCampaignCard = (c) => {
     const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 1;
     const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
@@ -699,10 +754,12 @@ export default function App() {
           </div>
         </div>
 
+        {/* RE-ARRANGED TABS WITH DEALS TAB */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
             { id: 'leads', label: `All leads (${processedLeads.length})`, icon: Users },
+            { id: 'deals', label: `Deals (${dealLeads.length})`, icon: Briefcase },
             { id: 'events', label: 'Events', icon: Calendar },
             { id: 'campaigns', label: `Campaigns (${filteredCampaigns.length})`, icon: Mail },
             { id: 'automations', label: `Automations (${automations.length})`, icon: Layers },
@@ -866,7 +923,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* LIVE ENGAGEMENT STREAM (LIMITED TO MAX 4 ITEMS) */}
+              {/* LIVE ENGAGEMENT STREAM */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center space-x-2">
@@ -916,7 +973,6 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Day of Week Distribution */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
                     <Calendar className="h-3.5 w-3.5 text-slate-500" />
@@ -945,7 +1001,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Time Window Distribution */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
                     <Sun className="h-3.5 w-3.5 text-slate-500" />
@@ -1109,6 +1164,104 @@ export default function App() {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* DEALS TAB (NEW) */}
+        {activeTab === 'deals' && (
+          <div className="space-y-8">
+            
+            {/* PIPELINE STAGE SUMMARY VISUALIZATION */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Deals Pipeline Stage Funnel</h3>
+                  <p className="text-xs text-slate-500">Live breakdown of deal distribution across all 10 active pipeline stages</p>
+                </div>
+                <span className="text-xs font-extrabold bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 rounded-full">
+                  {dealLeads.length} Active Deals
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2">
+                {PIPELINE_STAGES.map((stg) => {
+                  const cnt = pipelineStageCounts[stg] || 0;
+                  return (
+                    <div key={stg} className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-center space-y-1">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight truncate" title={stg}>
+                        {stg}
+                      </p>
+                      <p className="text-xl font-extrabold text-slate-900">{cnt}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* DEALS CONTACT TABLE */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200">
+                <h3 className="text-base font-bold text-slate-900">Active Deals List</h3>
+                <p className="text-xs text-slate-500">Showing all contacts where Pipeline Stage is populated</p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3">Full Name</th>
+                      <th className="px-6 py-3">Email Address</th>
+                      <th className="px-6 py-3">Company</th>
+                      <th className="px-6 py-3">Role</th>
+                      <th className="px-6 py-3">Lead Source</th>
+                      <th className="px-6 py-3">Lead Owner</th>
+                      <th className="px-6 py-3">Lead Type</th>
+                      <th className="px-6 py-3 text-right">Lead Qualifier Survey</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {dealLeads.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" className="px-6 py-8 text-center text-xs text-slate-400 italic">
+                          No active deal contacts found with a non-blank pipeline stage.
+                        </td>
+                      </tr>
+                    ) : (
+                      dealLeads.map(lead => (
+                        <tr key={lead.id} className="hover:bg-slate-50 transition">
+                          <td className="px-6 py-4 font-bold text-slate-900">{lead.fullName}</td>
+                          <td className="px-6 py-4 text-xs text-slate-500">{lead.email}</td>
+                          <td className="px-6 py-4 text-xs font-medium text-slate-700">{lead.company}</td>
+                          <td className="px-6 py-4 text-xs text-slate-600">{lead.role}</td>
+                          <td className="px-6 py-4 text-xs text-slate-600">{lead.leadSource}</td>
+                          <td className="px-6 py-4 text-xs text-slate-600">{lead.leadOwner}</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                              lead.leadType === 'Hot' ? 'bg-red-100 text-red-800' :
+                              lead.leadType === 'Warm' ? 'bg-amber-100 text-amber-800' :
+                              lead.leadType === 'MQL' ? 'bg-indigo-100 text-indigo-800' :
+                              'bg-blue-100 text-blue-800'
+                            }`}>
+                              {lead.leadType}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              onClick={() => openSurveyModal(lead)}
+                              className="inline-flex items-center space-x-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition cursor-pointer"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>View Qualifier Survey</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
           </div>
         )}
 
@@ -1817,6 +1970,121 @@ export default function App() {
             </button>
           </form>
 
+        </div>
+      )}
+
+      {/* LEAD QUALIFIER SURVEY MODAL FOR DEALS */}
+      {selectedSurveyLead && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Lead Qualifier Survey</h3>
+                <p className="text-xs text-slate-500">Filled up by lead owner for <strong className="text-slate-800">{selectedSurveyLead.fullName}</strong> ({selectedSurveyLead.company})</p>
+              </div>
+              <button
+                onClick={() => setSelectedSurveyLead(null)}
+                className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-500 transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-5 text-xs">
+              
+              {/* Field 1 */}
+              <div className="space-y-1">
+                <label className="block font-bold text-slate-800">Target go-live date for this project?</label>
+                <p className="text-[10px] text-slate-400 font-mono">%TARGET_GOLIVE_DATE_FOR_THIS_PROJECT%</p>
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-900 font-medium">
+                  {surveyFormData.targetGoLive}
+                </div>
+              </div>
+
+              {/* Field 2 */}
+              <div className="space-y-1">
+                <label className="block font-bold text-slate-800">What is the current budget status for this initiative?</label>
+                <p className="text-[10px] text-slate-400 font-mono">%WHAT_IS_THE_CURRENT_BUDGET_STATUS_FOR_THIS_INITIATIVE%</p>
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-900 font-medium">
+                  {surveyFormData.budgetStatus}
+                </div>
+              </div>
+
+              {/* Field 3 */}
+              <div className="space-y-1">
+                <label className="block font-bold text-slate-800">What is the lead's role in the decision?</label>
+                <p className="text-[10px] text-slate-400 font-mono">%WHAT_IS_THE_LEADS_ROLE_IN_THE_DECISION%</p>
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-900 font-medium">
+                  {surveyFormData.decisionRole}
+                </div>
+              </div>
+
+              {/* Field 4 */}
+              <div className="space-y-1">
+                <label className="block font-bold text-slate-800">How important is solving this problem to the business right now?</label>
+                <p className="text-[10px] text-slate-400 font-mono">%HOW_IMPORTANT_IS_SOLVING_THIS_PROBLEM_TO_THE_BUSINESS_RIGHT_NOW%</p>
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-900 font-medium">
+                  {surveyFormData.problemImportance}
+                </div>
+              </div>
+
+              {/* Field 5 */}
+              <div className="space-y-1">
+                <label className="block font-bold text-slate-800">What business outcome are they trying to achieve?</label>
+                <p className="text-[10px] text-slate-400 font-mono">%WHAT_BUSINESS_OUTCOME_ARE_THEY_TRYING_TO_ACHIEVE%</p>
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-900 font-medium">
+                  {surveyFormData.businessOutcome}
+                </div>
+              </div>
+
+              {/* Field 6 */}
+              <div className="space-y-1">
+                <label className="block font-bold text-slate-800">What specific target or KPI are they benchmarking against?</label>
+                <p className="text-[10px] text-slate-400 font-mono">%WHAT_SPECIFIC_TARGET_OR_KPI_ARE_THEY_BENCHMARKING_AGAINST%</p>
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-900 font-medium">
+                  {surveyFormData.targetKpi}
+                </div>
+              </div>
+
+              {/* Field 7 */}
+              <div className="space-y-1">
+                <label className="block font-bold text-slate-800">Does the project align with Fenyx's solutions?</label>
+                <p className="text-[10px] text-slate-400 font-mono">%DOES_THE_PROJECT_ALIGN_WITH_FENYXS_SOLUTIONS%</p>
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-900 font-medium flex items-center space-x-2">
+                  <CheckSquare className={`h-4 w-4 ${surveyFormData.alignsWithFenyx ? 'text-emerald-600' : 'text-slate-300'}`} />
+                  <span>{surveyFormData.alignsWithFenyx ? 'Yes - Project Aligned' : 'No / Unspecified'}</span>
+                </div>
+              </div>
+
+              {/* Field 8 */}
+              <div className="space-y-1">
+                <label className="block font-bold text-slate-800">What Business Challenges Are You Facing?</label>
+                <p className="text-[10px] text-slate-400 font-mono">%WHAT_BUSINESS_CHALLENGES_ARE_YOU_FACING%</p>
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-900 font-medium">
+                  {surveyFormData.businessChallenges}
+                </div>
+              </div>
+
+              {/* Field 9 */}
+              <div className="space-y-1">
+                <label className="block font-bold text-slate-800">Notes</label>
+                <p className="text-[10px] text-slate-400 font-mono">%NOTES%</p>
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-900 font-medium whitespace-pre-wrap">
+                  {surveyFormData.notes}
+                </div>
+              </div>
+
+            </div>
+
+            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 text-right">
+              <button
+                onClick={() => setSelectedSurveyLead(null)}
+                className="px-4 py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-900 transition cursor-pointer"
+              >
+                Close Survey
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
