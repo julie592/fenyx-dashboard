@@ -11,15 +11,15 @@ import {
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
 
 const DEFAULT_TAG_RULES = {
-  MQL: ['FPF-Approved', 'FPF-Waitlist'],
+  MQL: ['FPF-Approved', 'FPF-Waitlisted'],
   Hot: [''],
-  Warm: ['Growth Review - Fenyx Website','Growth Review - In Person'],
+  Warm: ['Growth Review - Coming Soon Form'],
   Cold: [''],
   'Not Qualified': ['FPF-Rejected']
 };
 
 const DEFAULT_SPEND = {
-  'Google event Registrants': 4,760.39,
+  'Google event Registrants': 0,
   'Google Partner Referral': 0,
   'Website Growth Audit Form': 0,
   'Internal leads': 0
@@ -80,6 +80,10 @@ export default function App() {
   const [selectedEventId, setSelectedEventId] = useState('google-ph-aug-2026');
   const [tagLeadModal, setTagLeadModal] = useState(null);
 
+  // Save Status States for Spend & Tag Rules
+  const [spendSaveStatus, setSpendSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
+  const [rulesSaveStatus, setRulesSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
+
   // Gemini Floating Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -123,12 +127,16 @@ export default function App() {
 
       if (tagRulesRes.status === 'fulfilled' && tagRulesRes.value.ok) {
         const data = await tagRulesRes.value.json();
-        if (data && Object.keys(data).length > 0) setTagRules(data);
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          setTagRules(data);
+        }
       }
 
       if (spendRes.status === 'fulfilled' && spendRes.value.ok) {
         const data = await spendRes.value.json();
-        if (data && Object.keys(data).length > 0) setSpendSettings(data);
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          setSpendSettings(data);
+        }
       }
 
       const failedRequests = [contactsRes, campaignsRes, automationsRes].filter(
@@ -167,6 +175,24 @@ export default function App() {
         body: JSON.stringify(updatedSpend)
       });
     } catch (err) { console.error('Failed to save spend settings:', err); }
+  };
+
+  const handleSaveSpend = async () => {
+    setSpendSaveStatus('saving');
+    const cleanSpend = {};
+    Object.keys(spendSettings).forEach(k => {
+      cleanSpend[k] = Number(spendSettings[k]) || 0;
+    });
+    await saveSpendToBackend(cleanSpend);
+    setSpendSaveStatus('saved');
+    setTimeout(() => setSpendSaveStatus('idle'), 3000);
+  };
+
+  const handleSaveRules = async () => {
+    setRulesSaveStatus('saving');
+    await saveRulesToBackend(tagRules);
+    setRulesSaveStatus('saved');
+    setTimeout(() => setRulesSaveStatus('idle'), 3000);
   };
 
   const processedLeads = useMemo(() => {
@@ -636,26 +662,16 @@ export default function App() {
     const tag = newTagInput.tag.trim().toLowerCase();
     const updatedRules = { ...tagRules, [stage]: [...(tagRules[stage] || []), tag] };
     setTagRules(updatedRules);
-    saveRulesToBackend(updatedRules);
     setNewTagInput({ ...newTagInput, tag: '' });
   };
 
   const handleRemoveTagRule = (stage, tagToRemove) => {
     const updatedRules = { ...tagRules, [stage]: tagRules[stage].filter(t => t !== tagToRemove) };
     setTagRules(updatedRules);
-    saveRulesToBackend(updatedRules);
   };
 
   const handleSpendInputChange = (source, value) => {
     setSpendSettings(prev => ({ ...prev, [source]: value }));
-  };
-
-  const handleSpendInputBlur = () => {
-    const cleanSpend = {};
-    Object.keys(spendSettings).forEach(k => {
-      cleanSpend[k] = Number(spendSettings[k]) || 0;
-    });
-    saveSpendToBackend(cleanSpend);
   };
 
   const openSurveyModal = (lead) => {
@@ -1777,11 +1793,35 @@ export default function App() {
         {/* MARKETING SPEND TAB */}
         {activeTab === 'spend' && (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-2">
-              <h3 className="text-base font-bold text-slate-900">Lead Source Marketing Spend Allocation</h3>
-              <p className="text-xs text-slate-500">
-                Configure your active advertising and partner acquisition spend per lead source. Amounts set here automatically update the Cost per MQL performance metrics globally.
-              </p>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900">Lead Source Marketing Spend Allocation</h3>
+                <p className="text-xs text-slate-500">
+                  Configure your active advertising and partner acquisition spend per lead source. Click "Save Changes" to lock in settings to MongoDB.
+                </p>
+              </div>
+              <button
+                onClick={handleSaveSpend}
+                disabled={spendSaveStatus === 'saving'}
+                className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {spendSaveStatus === 'saving' ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : spendSaveStatus === 'saved' ? (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-400" />
+                    <span>Saved to Database!</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </button>
             </div>
 
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
@@ -1797,13 +1837,36 @@ export default function App() {
                         placeholder="0"
                         value={spendSettings[source] ?? ''}
                         onChange={e => handleSpendInputChange(source, e.target.value)}
-                        onBlur={handleSpendInputBlur}
                         className="w-full pl-8 pr-4 py-2 text-sm font-semibold border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                       />
                     </div>
-                    <p className="text-[11px] text-slate-400">Saved automatically on field blur</p>
                   </div>
                 ))}
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={handleSaveSpend}
+                  disabled={spendSaveStatus === 'saving'}
+                  className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {spendSaveStatus === 'saving' ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : spendSaveStatus === 'saved' ? (
+                    <>
+                      <Check className="h-4 w-4 text-emerald-400" />
+                      <span>Saved to Database!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" />
+                      <span>Save Changes</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -1812,11 +1875,35 @@ export default function App() {
         {/* RULES TAB */}
         {activeTab === 'tag-rules' && (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-2">
-              <h3 className="text-base font-bold text-slate-900">Auto-Identify Lead Types via ActiveCampaign Tags</h3>
-              <p className="text-xs text-slate-500">
-                Configure tag keywords globally. Any updates you make here will be saved to the backend and applied for your entire team across sessions.
-              </p>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900">Auto-Identify Lead Types via ActiveCampaign Tags</h3>
+                <p className="text-xs text-slate-500">
+                  Configure tag keywords globally. Click "Save Changes" to permanently persist your tag rules to MongoDB.
+                </p>
+              </div>
+              <button
+                onClick={handleSaveRules}
+                disabled={rulesSaveStatus === 'saving'}
+                className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {rulesSaveStatus === 'saving' ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : rulesSaveStatus === 'saved' ? (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-400" />
+                    <span>Saved to Database!</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </button>
             </div>
 
             <form onSubmit={handleAddTagRule} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex gap-4 items-end">
@@ -1851,7 +1938,7 @@ export default function App() {
                 className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-lg inline-flex items-center space-x-1 transition cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
-                <span>Add Rule</span>
+                <span>Add Tag</span>
               </button>
             </form>
 
@@ -1864,13 +1951,13 @@ export default function App() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {tags.map(t => (
-                      <span key={t} className="inline-flex items-center space-x-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs px-2.5 py-1 rounded-full">
+                    {tags.map((t, idx) => (
+                      <span key={idx} className="inline-flex items-center space-x-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs px-2.5 py-1 rounded-full">
                         <Tag className="h-3 w-3 text-slate-400" />
-                        <span>{t}</span>
+                        <span>{t || '<Empty Tag>'}</span>
                         <button
                           onClick={() => handleRemoveTagRule(stage, t)}
-                          className="hover:text-red-600 ml-1"
+                          className="hover:text-red-600 ml-1 cursor-pointer"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -1879,6 +1966,31 @@ export default function App() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={handleSaveRules}
+                disabled={rulesSaveStatus === 'saving'}
+                className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {rulesSaveStatus === 'saving' ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : rulesSaveStatus === 'saved' ? (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-400" />
+                    <span>Saved to Database!</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         )}
