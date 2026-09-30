@@ -5,18 +5,11 @@ import {
   X, Filter, Plus, ArrowUpRight, Building2, UserCheck,
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
   CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
-  MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, TrendingUp, Sun, FileText, CheckSquare
+  MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, TrendingUp, Sun, FileText, CheckSquare,
+  HelpCircle, Link as LinkIcon, ShieldCheck
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
-
-const DEFAULT_TAG_RULES = {
-  MQL: ['FPF-Approved', 'FPF-Waitlisted'],
-  Hot: [''],
-  Warm: ['Growth Review - Coming Soon Form'],
-  Cold: [''],
-  'Not Qualified': ['FPF-Rejected']
-};
 
 const DEFAULT_SPEND = {
   'Google event Registrants': 0,
@@ -53,6 +46,17 @@ const PIPELINE_STAGES = [
   'No Response'
 ];
 
+const LEAD_STAGES = [
+  { name: 'Lead', label: 'Valid Lead', color: 'blue', desc: 'Contact Captured and Validated' },
+  { name: 'Qualified', label: 'Qualified Lead', color: 'emerald', desc: 'Fit or Qualification Criteria Met' },
+  { name: 'MQL', label: 'MQL', color: 'indigo', desc: 'Approved + Discovery Booking Confirmed' },
+  { name: 'SAL', label: 'SAL', color: 'purple', desc: 'Human Acceptance' },
+  { name: 'SQL', label: 'SQL', color: 'teal', desc: 'Completed and Qualified Discovery' },
+  { name: 'Opportunity', label: 'Opportunity', color: 'amber', desc: 'Mutually agreed sales process' },
+  { name: 'Not Qualified', label: 'Not Qualified', color: 'slate', desc: 'Not Qualified' },
+  { name: 'Won', label: 'Won', color: 'green', desc: 'Closed deal' }
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
@@ -80,9 +84,8 @@ export default function App() {
   const [selectedEventId, setSelectedEventId] = useState('google-ph-aug-2026');
   const [tagLeadModal, setTagLeadModal] = useState(null);
 
-  // Save Status States for Spend & Tag Rules
-  const [spendSaveStatus, setSpendSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
-  const [rulesSaveStatus, setRulesSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
+  // Spend Save State
+  const [spendSaveStatus, setSpendSaveStatus] = useState('idle');
 
   // Gemini Floating Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -94,19 +97,16 @@ export default function App() {
     }
   ]);
 
-  const [tagRules, setTagRules] = useState(DEFAULT_TAG_RULES);
   const [spendSettings, setSpendSettings] = useState(DEFAULT_SPEND);
-  const [newTagInput, setNewTagInput] = useState({ stage: 'MQL', tag: '' });
 
   const fetchData = async () => {
     setLoading(true);
     setSyncStatus('Syncing...');
     try {
-      const [contactsRes, campaignsRes, automationsRes, tagRulesRes, spendRes] = await Promise.allSettled([
+      const [contactsRes, campaignsRes, automationsRes, spendRes] = await Promise.allSettled([
         fetch(`${API_PROXY}/api/contacts`),
         fetch(`${API_PROXY}/api/campaigns`),
         fetch(`${API_PROXY}/api/automations`),
-        fetch(`${API_PROXY}/api/tag-rules`),
         fetch(`${API_PROXY}/api/spend-settings`)
       ]);
 
@@ -123,13 +123,6 @@ export default function App() {
       if (automationsRes.status === 'fulfilled' && automationsRes.value.ok) {
         const data = await automationsRes.value.json();
         setAutomations(data.automations || []);
-      }
-
-      if (tagRulesRes.status === 'fulfilled' && tagRulesRes.value.ok) {
-        const data = await tagRulesRes.value.json();
-        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-          setTagRules(data);
-        }
       }
 
       if (spendRes.status === 'fulfilled' && spendRes.value.ok) {
@@ -157,16 +150,6 @@ export default function App() {
     fetchData();
   }, []);
 
-  const saveRulesToBackend = async (updatedRules) => {
-    try {
-      await fetch(`${API_PROXY}/api/tag-rules`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedRules)
-      });
-    } catch (err) { console.error('Failed to save tag rules:', err); }
-  };
-
   const saveSpendToBackend = async (updatedSpend) => {
     try {
       await fetch(`${API_PROXY}/api/spend-settings`, {
@@ -188,33 +171,33 @@ export default function App() {
     setTimeout(() => setSpendSaveStatus('idle'), 3000);
   };
 
-  const handleSaveRules = async () => {
-    setRulesSaveStatus('saving');
-    await saveRulesToBackend(tagRules);
-    setRulesSaveStatus('saved');
-    setTimeout(() => setRulesSaveStatus('idle'), 3000);
-  };
-
   const processedLeads = useMemo(() => {
-    return rawContacts.map(c => {
-      const tags = (c.rawTags || []).map(t => String(t).toLowerCase());
+    return rawContacts;
+  }, [rawContacts]);
 
-      let detectedType = 'Cold';
-      
-      const isNotQual = tags.some(t => tagRules['Not Qualified']?.some(r => r.trim() !== '' && t.includes(r.toLowerCase())));
-      const isMql = tags.some(t => tagRules['MQL']?.some(r => r.trim() !== '' && t.includes(r.toLowerCase())));
-      const isHot = tags.some(t => tagRules['Hot']?.some(r => r.trim() !== '' && t.includes(r.toLowerCase())));
-      const isWarm = tags.some(t => tagRules['Warm']?.some(r => r.trim() !== '' && t.includes(r.toLowerCase())));
-
-      if (isNotQual) detectedType = 'Not Qualified';
-      else if (isMql) detectedType = 'MQL';
-      else if (isHot) detectedType = 'Hot';
-      else if (isWarm) detectedType = 'Warm';
-      else if (c.emailsOpened >= 3) detectedType = 'Warm';
-
-      return { ...c, leadType: detectedType };
+  const leadTypeCounts = useMemo(() => {
+    const counts = { Lead: 0, Qualified: 0, MQL: 0, SAL: 0, SQL: 0, Opportunity: 0, 'Not Qualified': 0, Won: 0 };
+    processedLeads.forEach(l => {
+      const typeKey = l.leadType;
+      if (counts[typeKey] !== undefined) counts[typeKey]++;
+      else counts.Lead++;
     });
-  }, [rawContacts, tagRules]);
+    return counts;
+  }, [processedLeads]);
+
+  const totalContacts = processedLeads.length;
+  const totalAdSpend = useMemo(() => {
+    return Object.values(spendSettings).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
+  }, [spendSettings]);
+
+  // FINANCIAL SCORECARDS
+  const validLeadCount = leadTypeCounts.Lead || 1;
+  const qualifiedLeadCount = leadTypeCounts.Qualified || 1;
+  const mqlCount = leadTypeCounts.MQL || 1;
+
+  const costPerLead = totalAdSpend > 0 ? (totalAdSpend / validLeadCount) : 0;
+  const costPerQualified = totalAdSpend > 0 ? (totalAdSpend / qualifiedLeadCount) : 0;
+  const costPerMQL = totalAdSpend > 0 ? (totalAdSpend / mqlCount) : 0;
 
   const dealLeads = useMemo(() => {
     return processedLeads.filter(l => l.pipelineStage && l.pipelineStage !== '—' && l.pipelineStage.trim() !== '');
@@ -223,7 +206,6 @@ export default function App() {
   const pipelineStageCounts = useMemo(() => {
     const counts = {};
     PIPELINE_STAGES.forEach(stg => counts[stg] = 0);
-
     const cleanStr = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
     dealLeads.forEach(lead => {
@@ -237,21 +219,12 @@ export default function App() {
     return counts;
   }, [dealLeads]);
 
-  const leadTypeCounts = useMemo(() => {
-    const counts = { Hot: 0, Warm: 0, MQL: 0, Cold: 0, 'Not Qualified': 0 };
-    processedLeads.forEach(l => {
-      if (counts[l.leadType] !== undefined) counts[l.leadType]++;
-      else counts.Cold++;
-    });
-    return counts;
-  }, [processedLeads]);
-
   const sourceBreakdown = useMemo(() => {
     const map = {
-      'Google event Registrants': { count: 0, hot: 0, warm: 0, mqls: 0, cold: 0 },
-      'Google Partner Referral': { count: 0, hot: 0, warm: 0, mqls: 0, cold: 0 },
-      'Website Growth Audit Form': { count: 0, hot: 0, warm: 0, mqls: 0, cold: 0 },
-      'Internal leads': { count: 0, hot: 0, warm: 0, mqls: 0, cold: 0 }
+      'Google event Registrants': { count: 0, valid: 0, qual: 0, mqls: 0 },
+      'Google Partner Referral': { count: 0, valid: 0, qual: 0, mqls: 0 },
+      'Website Growth Audit Form': { count: 0, valid: 0, qual: 0, mqls: 0 },
+      'Internal leads': { count: 0, valid: 0, qual: 0, mqls: 0 }
     };
 
     processedLeads.forEach(l => {
@@ -264,17 +237,18 @@ export default function App() {
 
       if (map[sourceCat]) {
         map[sourceCat].count++;
-        if (l.leadType === 'Hot') map[sourceCat].hot++;
-        if (l.leadType === 'Warm') map[sourceCat].warm++;
+        if (l.leadType === 'Lead') map[sourceCat].valid++;
+        if (l.leadType === 'Qualified') map[sourceCat].qual++;
         if (l.leadType === 'MQL') map[sourceCat].mqls++;
-        if (l.leadType === 'Cold') map[sourceCat].cold++;
       }
     });
 
     return Object.entries(map).map(([source, data]) => {
       const spend = Number(spendSettings[source] || 0);
+      const cpl = data.valid > 0 ? (spend / data.valid) : 0;
+      const cpq = data.qual > 0 ? (spend / data.qual) : 0;
       const cpmql = data.mqls > 0 ? (spend / data.mqls) : 0;
-      return { source, spend, cpmql, ...data };
+      return { source, spend, cpl, cpq, cpmql, ...data };
     });
   }, [processedLeads, spendSettings]);
 
@@ -370,21 +344,13 @@ export default function App() {
     });
   }, [processedLeads, tagLeadModal]);
 
-  const totalContacts = processedLeads.length;
-  const totalAdSpend = useMemo(() => {
-    return Object.values(spendSettings).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
-  }, [spendSettings]);
-
-  const totalMQLs = leadTypeCounts.MQL || 0;
-  const overallCostPerMQL = totalMQLs > 0 ? (totalAdSpend / totalMQLs) : 0;
-
   const roleBreakdown = useMemo(() => {
     const map = {
-      'C-Level': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
-      'Director': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
-      'Founder/Owner': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
-      'Manager': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 },
-      'Others': { total: 0, hot: 0, mql: 0, warm: 0, cold: 0, notQual: 0 }
+      'C-Level': { total: 0, mql: 0, qual: 0, lead: 0 },
+      'Director': { total: 0, mql: 0, qual: 0, lead: 0 },
+      'Founder/Owner': { total: 0, mql: 0, qual: 0, lead: 0 },
+      'Manager': { total: 0, mql: 0, qual: 0, lead: 0 },
+      'Others': { total: 0, mql: 0, qual: 0, lead: 0 }
     };
 
     processedLeads.forEach(l => {
@@ -397,11 +363,9 @@ export default function App() {
         else if (r.includes('manager')) cat = 'Manager';
       }
       map[cat].total++;
-      if (l.leadType === 'Hot') map[cat].hot++;
+      if (l.leadType === 'Lead') map[cat].lead++;
+      if (l.leadType === 'Qualified') map[cat].qual++;
       if (l.leadType === 'MQL') map[cat].mql++;
-      if (l.leadType === 'Warm') map[cat].warm++;
-      if (l.leadType === 'Cold') map[cat].cold++;
-      if (l.leadType === 'Not Qualified') map[cat].notQual++;
     });
 
     return Object.entries(map).map(([role, stats]) => ({ role, ...stats }));
@@ -506,6 +470,34 @@ export default function App() {
       .slice(0, 4);
   }, [processedLeads]);
 
+  // TOP CLICKED LINKS ANALYTICS ENGINE
+  const topClickedLinks = useMemo(() => {
+    const linkMap = [
+      { url: 'https://www.fenyx.digital/future-proof-forum-2026-growth-audit', name: 'Future Proof Forum Growth Audit Landing Page', clicks: 0 },
+      { url: 'https://fenyx.digital/audit-request', name: 'Growth Audit Booking Form', clicks: 0 },
+      { url: 'https://fenyx.digital/resources/consumer-shift', name: 'Consumer Shift Event Session Materials', clicks: 0 },
+      { url: 'https://fenyx.digital/resources/data-to-strategy', name: 'Data to Strategy Framework Handout', clicks: 0 }
+    ];
+
+    processedLeads.forEach(lead => {
+      const rawTags = (lead.rawTags || []).map(t => String(t).toLowerCase());
+      if (rawTags.some(t => t.includes('growth-audit') || t.includes('future-proof-forum-2026-growth-audit'))) {
+        linkMap[0].clicks += (lead.linksClicked || 1);
+      }
+      if (rawTags.some(t => t.includes('form') || t.includes('audit'))) {
+        linkMap[1].clicks += 1;
+      }
+      if (rawTags.some(t => t.includes('consumer'))) {
+        linkMap[2].clicks += 1;
+      }
+      if (rawTags.some(t => t.includes('data'))) {
+        linkMap[3].clicks += 1;
+      }
+    });
+
+    return linkMap.sort((a, b) => b.clicks - a.clicks);
+  }, [processedLeads]);
+
   const handleSendMessage = (textToSend) => {
     const query = (textToSend || chatInput).trim();
     if (!query) return;
@@ -521,17 +513,11 @@ export default function App() {
       if (lowerQ.includes('attended') || lowerQ.includes('google event') || lowerQ.includes('event')) {
         botResponse = `For "${activeEvent.name}", exactly ${activeEventStats.attended} registrants possess the "FPF-Attended" tag out of ${activeEventStats.registered} total registered contacts (${activeEventStats.registered > 0 ? ((activeEventStats.attended / activeEventStats.registered) * 100).toFixed(1) : 0}% attendance rate).`;
       } else if (lowerQ.includes('cost per mql') || lowerQ.includes('cpmql') || lowerQ.includes('cost/mql')) {
-        botResponse = `Your overall Cost per MQL across all channels is $${overallCostPerMQL.toFixed(2)} based on $${totalAdSpend.toLocaleString()} total marketing spend and ${totalMQLs} total MQLs generated.`;
-      } else if (lowerQ.includes('role') || lowerQ.includes('persona')) {
-        const topRole = [...roleBreakdown].sort((a, b) => b.total - a.total)[0];
-        botResponse = `Your highest concentration role is "${topRole?.role}" with ${topRole?.total} total contacts (${topRole?.mql} converted to MQL).`;
-      } else if (lowerQ.includes('source') || lowerQ.includes('channel')) {
-        const topSource = [...sourceBreakdown].sort((a, b) => b.mqls - a.mqls)[0];
-        botResponse = `Your top-performing lead source is "${topSource?.source}" producing ${topSource?.mqls} MQLs at $${topSource?.cpmql?.toFixed(2)}/MQL.`;
-      } else if (lowerQ.includes('growth audit') || lowerQ.includes('audit')) {
-        botResponse = `There are currently ${activeEventStats.growthAuditCount} attendees who have requested a Growth Audit (tagged "FPF-Growth-Audit" or clicked the audit link).`;
+        botResponse = `Your overall Cost per MQL is $${costPerMQL.toFixed(2)} based on $${totalAdSpend.toLocaleString()} total spend and ${leadTypeCounts.MQL} MQLs.`;
+      } else if (lowerQ.includes('cost per lead') || lowerQ.includes('cpl')) {
+        botResponse = `Your Cost per Valid Lead is $${costPerLead.toFixed(2)} based on $${totalAdSpend.toLocaleString()} total spend and ${leadTypeCounts.Lead} Valid Leads.`;
       } else {
-        botResponse = `I analyzed your live CRM data: You currently have ${totalContacts.toLocaleString()} total contacts (${leadTypeCounts.Hot} Hot, ${leadTypeCounts.Warm} Warm, ${leadTypeCounts.MQL} MQLs). Total configured spend is $${totalAdSpend.toLocaleString()}.`;
+        botResponse = `I analyzed your live CRM data: You currently have ${totalContacts.toLocaleString()} total contacts across your pipeline. Total configured spend is $${totalAdSpend.toLocaleString()}.`;
       }
 
       setChatMessages(prev => [...prev, { sender: 'gemini', text: botResponse }]);
@@ -655,21 +641,6 @@ export default function App() {
     });
   }, [processedLeads, searchQuery, filterLeadType, filterPipeline]);
 
-  const handleAddTagRule = (e) => {
-    e.preventDefault();
-    if (!newTagInput.tag.trim()) return;
-    const stage = newTagInput.stage;
-    const tag = newTagInput.tag.trim().toLowerCase();
-    const updatedRules = { ...tagRules, [stage]: [...(tagRules[stage] || []), tag] };
-    setTagRules(updatedRules);
-    setNewTagInput({ ...newTagInput, tag: '' });
-  };
-
-  const handleRemoveTagRule = (stage, tagToRemove) => {
-    const updatedRules = { ...tagRules, [stage]: tagRules[stage].filter(t => t !== tagToRemove) };
-    setTagRules(updatedRules);
-  };
-
   const handleSpendInputChange = (source, value) => {
     setSpendSettings(prev => ({ ...prev, [source]: value }));
   };
@@ -770,6 +741,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* RE-ARRANGED TABS INCLUDING NEW LEGEND TAB */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
@@ -779,7 +751,7 @@ export default function App() {
             { id: 'campaigns', label: `Campaigns (${filteredCampaigns.length})`, icon: Mail },
             { id: 'automations', label: `Automations (${automations.length})`, icon: Layers },
             { id: 'spend', label: 'Marketing Spend', icon: DollarSign },
-            { id: 'tag-rules', label: 'Rules', icon: Tag }
+            { id: 'legend', label: 'Legend', icon: HelpCircle }
           ].map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -806,61 +778,90 @@ export default function App() {
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
+            
+            {/* ROW 1: FINANCIAL SCORECARDS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-4 rounded-xl border text-slate-900 bg-white border-slate-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Contacts</p>
-                <p className="text-3xl font-extrabold mt-1">{totalContacts.toLocaleString()}</p>
-                <p className="text-[11px] text-slate-400 mt-1">Active sync database</p>
-              </div>
-
               <div className="p-4 rounded-xl border text-emerald-900 bg-emerald-50 border-emerald-200 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Total Ad Spend</p>
                 <p className="text-3xl font-extrabold mt-1">${totalAdSpend.toLocaleString()}</p>
-                <p className="text-[11px] text-emerald-600 mt-1">Configured lead sources</p>
+                <p className="text-[11px] text-emerald-600 mt-1">Configured marketing channels</p>
+              </div>
+
+              <div className="p-4 rounded-xl border text-blue-900 bg-blue-50 border-blue-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Cost per Lead (Valid)</p>
+                <p className="text-3xl font-extrabold mt-1">${costPerLead.toFixed(2)}</p>
+                <p className="text-[11px] text-blue-600 mt-1">{leadTypeCounts.Lead} Valid Leads</p>
+              </div>
+
+              <div className="p-4 rounded-xl border text-teal-900 bg-teal-50 border-teal-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Cost per Qualified Lead</p>
+                <p className="text-3xl font-extrabold mt-1">${costPerQualified.toFixed(2)}</p>
+                <p className="text-[11px] text-teal-600 mt-1">{leadTypeCounts.Qualified} Qualified Leads</p>
               </div>
 
               <div className="p-4 rounded-xl border text-indigo-900 bg-indigo-50 border-indigo-200 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Cost per MQL</p>
-                <p className="text-3xl font-extrabold mt-1">${overallCostPerMQL.toFixed(2)}</p>
-                <p className="text-[11px] text-indigo-600 mt-1">{totalMQLs} Total MQLs</p>
-              </div>
-
-              <div className="p-4 rounded-xl border text-purple-900 bg-purple-50 border-purple-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-purple-700">MQL Leads</p>
-                <p className="text-3xl font-extrabold mt-1">{totalMQLs}</p>
-                <p className="text-[11px] text-purple-600 mt-1">Qualified prospects</p>
-              </div>
-
-              <div className="p-4 rounded-xl border text-red-900 bg-red-50 border-red-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-red-700">Hot Leads</p>
-                <p className="text-3xl font-extrabold mt-1">{leadTypeCounts.Hot}</p>
-                <p className="text-[11px] text-red-600 mt-1">High conversion intent</p>
-              </div>
-
-              <div className="p-4 rounded-xl border text-amber-900 bg-amber-50 border-amber-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-700">Warm Leads</p>
-                <p className="text-3xl font-extrabold mt-1">{leadTypeCounts.Warm}</p>
-                <p className="text-[11px] text-amber-600 mt-1">Engaged contacts</p>
-              </div>
-
-              <div className="p-4 rounded-xl border text-blue-900 bg-blue-50 border-blue-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Cold Leads</p>
-                <p className="text-3xl font-extrabold mt-1">{leadTypeCounts.Cold}</p>
-                <p className="text-[11px] text-blue-600 mt-1">Unengaged prospects</p>
-              </div>
-
-              <div className="p-4 rounded-xl border text-slate-700 bg-slate-100 border-slate-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Not Qualified</p>
-                <p className="text-3xl font-extrabold mt-1">{leadTypeCounts['Not Qualified'] || 0}</p>
-                <p className="text-[11px] text-slate-400 mt-1">Unmatched / Rejected</p>
+                <p className="text-3xl font-extrabold mt-1">${costPerMQL.toFixed(2)}</p>
+                <p className="text-[11px] text-indigo-600 mt-1">{leadTypeCounts.MQL} Total MQLs</p>
               </div>
             </div>
 
+            {/* ROW 2: ALL 8 LEAD TYPE SCORECARDS */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+              {LEAD_STAGES.map((stg) => {
+                const count = leadTypeCounts[stg.name] || 0;
+                return (
+                  <div key={stg.name} className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-tight text-slate-500 truncate" title={stg.label}>
+                      {stg.label}
+                    </p>
+                    <p className="text-2xl font-extrabold text-slate-900">{count}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ROW 3: VISUAL LEAD CONVERSION FUNNEL */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Lead Conversion Lifecycle Throughput</h3>
+                  <p className="text-xs text-slate-500">Visual volume breakdown across all 8 ActiveCampaign lead stages</p>
+                </div>
+                <span className="text-xs font-extrabold bg-slate-100 text-slate-800 border border-slate-200 px-3 py-1 rounded-full">
+                  {totalContacts} Total Database Records
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {LEAD_STAGES.map((stg) => {
+                  const count = leadTypeCounts[stg.name] || 0;
+                  const pct = totalContacts > 0 ? ((count / totalContacts) * 100).toFixed(1) : '0.0';
+
+                  return (
+                    <div key={stg.name} className="space-y-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-slate-800 font-bold">{stg.label} ({stg.name})</span>
+                        <span className="text-slate-500 font-semibold">{count} contacts ({pct}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, Math.max(2, Number(pct)))}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ROW 4: LEAD SOURCE PERFORMANCE TABLE */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Lead Source Performance</h3>
-                  <p className="text-xs text-slate-500">Volume, lead stage segmentation, spend, and Cost per MQL</p>
+                  <p className="text-xs text-slate-500">Volume, lead stage segmentation, spend, Cost/Lead, and Cost/MQL</p>
                 </div>
                 <button
                   onClick={() => setActiveTab('spend')}
@@ -877,10 +878,11 @@ export default function App() {
                       <th className="px-6 py-3">Lead Source Category</th>
                       <th className="px-6 py-3">Spend ($)</th>
                       <th className="px-6 py-3">Total Leads</th>
-                      <th className="px-6 py-3">Hot Leads</th>
-                      <th className="px-6 py-3">Warm Leads</th>
+                      <th className="px-6 py-3">Valid Leads</th>
+                      <th className="px-6 py-3">Qualified</th>
                       <th className="px-6 py-3">MQLs</th>
-                      <th className="px-6 py-3">Cold Leads</th>
+                      <th className="px-6 py-3">Cost / Valid Lead</th>
+                      <th className="px-6 py-3">Cost / Qualified</th>
                       <th className="px-6 py-3">Cost / MQL</th>
                     </tr>
                   </thead>
@@ -890,10 +892,11 @@ export default function App() {
                         <td className="px-6 py-4 font-bold text-slate-900">{item.source}</td>
                         <td className="px-6 py-4 font-semibold text-slate-700">${item.spend.toLocaleString()}</td>
                         <td className="px-6 py-4 font-semibold text-slate-800">{item.count}</td>
-                        <td className="px-6 py-4 text-red-600 font-bold">{item.hot}</td>
-                        <td className="px-6 py-4 text-amber-600 font-bold">{item.warm}</td>
+                        <td className="px-6 py-4 text-blue-600 font-bold">{item.valid}</td>
+                        <td className="px-6 py-4 text-teal-600 font-bold">{item.qual}</td>
                         <td className="px-6 py-4 text-indigo-600 font-bold">{item.mqls}</td>
-                        <td className="px-6 py-4 text-blue-600 font-bold">{item.cold}</td>
+                        <td className="px-6 py-4 font-bold text-slate-700">{item.valid > 0 ? `$${item.cpl.toFixed(2)}` : '—'}</td>
+                        <td className="px-6 py-4 font-bold text-slate-700">{item.qual > 0 ? `$${item.cpq.toFixed(2)}` : '—'}</td>
                         <td className="px-6 py-4 text-emerald-700 font-extrabold bg-emerald-50/50">
                           {item.mqls > 0 ? `$${item.cpmql.toFixed(2)}` : '—'}
                         </td>
@@ -904,6 +907,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* ROW 5: ROLES & ENGAGEMENT FEED */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200">
@@ -916,10 +920,9 @@ export default function App() {
                       <tr>
                         <th className="px-6 py-3">Role / Persona Category</th>
                         <th className="px-6 py-3">Total Leads</th>
-                        <th className="px-6 py-3">Hot</th>
-                        <th className="px-6 py-3">Warm</th>
+                        <th className="px-6 py-3">Valid Lead</th>
+                        <th className="px-6 py-3">Qualified</th>
                         <th className="px-6 py-3">MQL</th>
-                        <th className="px-6 py-3">Cold</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
@@ -927,10 +930,9 @@ export default function App() {
                         <tr key={idx} className="hover:bg-slate-50">
                           <td className="px-6 py-4 font-bold text-slate-900">{item.role}</td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{item.total}</td>
-                          <td className="px-6 py-4 text-red-600 font-bold">{item.hot}</td>
-                          <td className="px-6 py-4 text-amber-600 font-bold">{item.warm}</td>
+                          <td className="px-6 py-4 text-blue-600 font-bold">{item.lead}</td>
+                          <td className="px-6 py-4 text-teal-600 font-bold">{item.qual}</td>
                           <td className="px-6 py-4 text-indigo-600 font-bold">{item.mql}</td>
-                          <td className="px-6 py-4 text-blue-600 font-bold">{item.cold}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1074,11 +1076,9 @@ export default function App() {
                     className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                   >
                     <option value="All">All Types</option>
-                    <option value="Hot">Hot</option>
-                    <option value="Warm">Warm</option>
-                    <option value="MQL">MQL</option>
-                    <option value="Cold">Cold</option>
-                    <option value="Not Qualified">Not Qualified</option>
+                    {LEAD_STAGES.map(stg => (
+                      <option key={stg.name} value={stg.name}>{stg.label}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -1142,13 +1142,7 @@ export default function App() {
                         </td>
 
                         <td className="px-6 py-4">
-                          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-                            lead.leadType === 'Hot' ? 'bg-red-100 text-red-800' :
-                            lead.leadType === 'Warm' ? 'bg-amber-100 text-amber-800' :
-                            lead.leadType === 'MQL' ? 'bg-indigo-100 text-indigo-800' :
-                            lead.leadType === 'Not Qualified' ? 'bg-slate-200 text-slate-700' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
+                          <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-indigo-100 text-indigo-800">
                             {lead.leadType}
                           </span>
                         </td>
@@ -1213,7 +1207,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* DEALS CONTACT TABLE WITH PIPELINE STAGE COLUMN */}
+            {/* DEALS CONTACT TABLE */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Active Deals List</h3>
@@ -1252,12 +1246,7 @@ export default function App() {
                           <td className="px-6 py-4 text-xs text-slate-600">{lead.leadSource}</td>
                           <td className="px-6 py-4 text-xs text-slate-600">{lead.leadOwner}</td>
                           <td className="px-6 py-4">
-                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-                              lead.leadType === 'Hot' ? 'bg-red-100 text-red-800' :
-                              lead.leadType === 'Warm' ? 'bg-amber-100 text-amber-800' :
-                              lead.leadType === 'MQL' ? 'bg-indigo-100 text-indigo-800' :
-                              'bg-blue-100 text-blue-800'
-                            }`}>
+                            <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-indigo-100 text-indigo-800">
                               {lead.leadType}
                             </span>
                           </td>
@@ -1561,7 +1550,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ORGANIZED CAMPAIGNS TAB */}
+        {/* ORGANIZED CAMPAIGNS TAB WITH MOST CLICKED LINKS */}
         {activeTab === 'campaigns' && (
           <div className="space-y-6">
             
@@ -1665,6 +1654,45 @@ export default function App() {
                 </div>
                 <p className="text-2xl font-extrabold text-amber-900">{campaignScorecard.clickRate}%</p>
                 <p className="text-[11px] text-amber-600">Unique Clicks / Unique Sent</p>
+              </div>
+            </div>
+
+            {/* NEW: MOST CLICKED LINKS ANALYTICS CARD */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <LinkIcon className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Most Clicked Destination Links</h3>
+                    <p className="text-xs text-slate-500">Highest volume URL clicks from campaign and nurture emails</p>
+                  </div>
+                </div>
+                <span className="text-xs font-extrabold bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-100">
+                  Engagement Drivers
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {topClickedLinks.map((item, idx) => (
+                  <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center space-x-4">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <p className="font-bold text-slate-900 text-xs truncate">{item.name}</p>
+                      <a 
+                        href={item.url} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="text-[10px] text-indigo-600 hover:underline flex items-center space-x-1 truncate"
+                      >
+                        <span className="truncate">{item.url}</span>
+                        <ExternalLink className="h-2.5 w-2.5 flex-shrink-0 inline" />
+                      </a>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-xl font-extrabold text-blue-900">{item.clicks}</span>
+                      <p className="text-[10px] text-slate-400 font-medium">Recorded Clicks</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -1872,125 +1900,63 @@ export default function App() {
           </div>
         )}
 
-        {/* RULES TAB */}
-        {activeTab === 'tag-rules' && (
+        {/* NEW LEGEND TAB MATCHING THE DEFINITIONS SCHEMA */}
+        {activeTab === 'legend' && (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
-              <div className="space-y-1">
-                <h3 className="text-base font-bold text-slate-900">Auto-Identify Lead Types via ActiveCampaign Tags</h3>
-                <p className="text-xs text-slate-500">
-                  Configure tag keywords globally. Click "Save Changes" to permanently persist your tag rules to MongoDB.
-                </p>
-              </div>
-              <button
-                onClick={handleSaveRules}
-                disabled={rulesSaveStatus === 'saving'}
-                className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition shadow-sm cursor-pointer disabled:opacity-50"
-              >
-                {rulesSaveStatus === 'saving' ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : rulesSaveStatus === 'saved' ? (
-                  <>
-                    <Check className="h-4 w-4 text-emerald-400" />
-                    <span>Saved to Database!</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4" />
-                    <span>Save Changes</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            <form onSubmit={handleAddTagRule} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex gap-4 items-end">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Lead Type</label>
-                <select
-                  value={newTagInput.stage}
-                  onChange={e => setNewTagInput({ ...newTagInput, stage: e.target.value })}
-                  className="text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="MQL">MQL</option>
-                  <option value="Hot">Hot</option>
-                  <option value="Warm">Warm</option>
-                  <option value="Cold">Cold</option>
-                  <option value="Not Qualified">Not Qualified</option>
-                </select>
+                <h3 className="text-base font-bold text-slate-900">[UPDATED] AC Lead Type Field Reference Legend[cite: 2]</h3>
+                <p className="text-xs text-slate-500 mt-1">Official stage definitions and qualification criteria for CRM pipeline classification[cite: 2]</p>
               </div>
-
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Tag Keyword / Identifier</label>
-                <input
-                  type="text"
-                  placeholder="e.g. approved, webinar-attendee, bad-data..."
-                  value={newTagInput.tag}
-                  onChange={e => setNewTagInput({ ...newTagInput, tag: e.target.value })}
-                  className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-lg inline-flex items-center space-x-1 transition cursor-pointer"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Tag</span>
-              </button>
-            </form>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {Object.entries(tagRules).map(([stage, tags]) => (
-                <div key={stage} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="font-bold text-slate-900 text-sm">{stage} Tag Conditions</h4>
-                    <span className="text-xs font-semibold text-slate-400">{tags.length} active rules</span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((t, idx) => (
-                      <span key={idx} className="inline-flex items-center space-x-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs px-2.5 py-1 rounded-full">
-                        <Tag className="h-3 w-3 text-slate-400" />
-                        <span>{t || '<Empty Tag>'}</span>
-                        <button
-                          onClick={() => handleRemoveTagRule(stage, t)}
-                          className="hover:text-red-600 ml-1 cursor-pointer"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              <span className="text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 rounded-full flex items-center space-x-1">
+                <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
+                <span>Active Schema</span>
+              </span>
             </div>
 
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={handleSaveRules}
-                disabled={rulesSaveStatus === 'saving'}
-                className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition shadow-sm cursor-pointer disabled:opacity-50"
-              >
-                {rulesSaveStatus === 'saving' ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : rulesSaveStatus === 'saved' ? (
-                  <>
-                    <Check className="h-4 w-4 text-emerald-400" />
-                    <span>Saved to Database!</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4" />
-                    <span>Save Changes</span>
-                  </>
-                )}
-              </button>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <table className="w-full text-left text-sm text-slate-700">
+                <thead className="bg-slate-900 text-white text-xs font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="px-6 py-4 border-r border-slate-800 w-1/3">[UPDATED] AC Lead Type Field[cite: 2]</th>
+                    <th className="px-6 py-4">Definition[cite: 2]</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-slate-50/30">
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Lead[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Contact Captured and Validated[cite: 2]</td>
+                  </tr>
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Qualified[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Fit or Qualification Criteria Met[cite: 2]</td>
+                  </tr>
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">MQL[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Approved + Discovery Booking Confirmed[cite: 2]</td>
+                  </tr>
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">SAL[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Human Acceptance[cite: 2]</td>
+                  </tr>
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">SQL[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Completed and Qualified Discovery[cite: 2]</td>
+                  </tr>
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Opportunity[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Mutually agreed sales process[cite: 2]</td>
+                  </tr>
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Not Qualified[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Not Qualified[cite: 2]</td>
+                  </tr>
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Won[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Closed deal[cite: 2]</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         )}
