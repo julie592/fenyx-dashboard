@@ -28,14 +28,6 @@ const configSchema = new mongoose.Schema({
 
 const Config = mongoose.models.Config || mongoose.model('Config', configSchema);
 
-const DEFAULT_TAG_RULES = {
-  MQL: ['FPF-Approved', 'FPF-Waitlisted'],
-  Hot: [''],
-  Warm: ['Growth Review - Coming Soon Form'],
-  Cold: [''],
-  'Not Qualified': ['FPF-Rejected']
-};
-
 const DEFAULT_SPEND_SETTINGS = {
   'Google event Registrants': 0,
   'Google Partner Referral': 0,
@@ -43,13 +35,10 @@ const DEFAULT_SPEND_SETTINGS = {
   'Internal leads': 0
 };
 
-// Memory Cache
 const memoryCache = {
-  tagRules: { ...DEFAULT_TAG_RULES },
   spendSettings: { ...DEFAULT_SPEND_SETTINGS }
 };
 
-// Await DB connection on cold starts to prevent fallback resets
 async function ensureDbConnected() {
   if (mongoose.connection.readyState !== 1 && MONGO_URI) {
     try {
@@ -64,11 +53,10 @@ async function ensureDbConnected() {
 if (MONGO_URI) {
   ensureDbConnected().then(async () => {
     try {
-      const rulesDoc = await Config.findOne({ key: 'tagRules' });
-      if (rulesDoc?.data) memoryCache.tagRules = rulesDoc.data;
-
       const spendDoc = await Config.findOne({ key: 'spendSettings' });
-      if (spendDoc?.data) memoryCache.spendSettings = spendDoc.data;
+      if (spendDoc?.data && Object.keys(spendDoc.data).length > 0) {
+        memoryCache.spendSettings = spendDoc.data;
+      }
     } catch (e) {
       console.error('Cache hydration error:', e.message);
     }
@@ -81,15 +69,16 @@ async function getConfig(key, fallback) {
   await ensureDbConnected();
   if (mongoose.connection.readyState === 1) {
     try {
-      let record = await Config.findOne({ key });
+      const record = await Config.findOne({ key });
       if (record?.data && Object.keys(record.data).length > 0) {
         memoryCache[key] = record.data;
         return record.data;
       } else if (!record) {
-        // Create initial DB record only if it does not exist at all
-        record = await Config.create({ key, data: fallback });
-        memoryCache[key] = record.data;
-        return record.data;
+        const newRecord = new Config({ key, data: fallback });
+        newRecord.markModified('data');
+        await newRecord.save();
+        memoryCache[key] = fallback;
+        return fallback;
       }
     } catch (err) {
       console.error(`Error reading ${key} from MongoDB:`, err.message);
@@ -103,29 +92,24 @@ async function saveConfig(key, data) {
   await ensureDbConnected();
   if (mongoose.connection.readyState === 1) {
     try {
-      await Config.findOneAndUpdate(
-        { key },
-        { $set: { data } },
-        { upsert: true, new: true, runValidators: true }
-      );
-      console.log(`✅ Saved ${key} to MongoDB Atlas`);
+      let record = await Config.findOne({ key });
+      if (!record) {
+        record = new Config({ key, data });
+      } else {
+        record.data = data;
+      }
+      record.markModified('data'); // Explicitly notify Mongoose of Mixed object changes
+      await record.save();
+      console.log(`✅ Permanently saved ${key} to MongoDB Atlas`);
       return true;
     } catch (err) {
-      console.error(`Error writing ${key} to Mongo:`, err.message);
+      console.error(`❌ Error writing ${key} to Mongo:`, err.message);
     }
+  } else {
+    console.warn(`⚠️️ DB not connected. Saved to memory cache only.`);
   }
   return false;
 }
-
-app.get('/api/tag-rules', async (req, res) => {
-  const rules = await getConfig('tagRules', DEFAULT_TAG_RULES);
-  res.json(rules);
-});
-
-app.post('/api/tag-rules', async (req, res) => {
-  await saveConfig('tagRules', req.body);
-  res.json({ success: true, rules: req.body });
-});
 
 app.get('/api/spend-settings', async (req, res) => {
   const spend = await getConfig('spendSettings', DEFAULT_SPEND_SETTINGS);
@@ -263,6 +247,20 @@ app.get('/api/contacts', async (req, res) => {
       const sourceVal = getVal('leadsource', 'source', 'utmsource', 'channel') !== '—' ? getVal('leadsource', 'source', 'utmsource', 'channel') : 'Unspecified';
       const stageVal = getVal('pipelinestage', 'pipeline_stage');
 
+      // EXTRACT LEAD TYPE DIRECTLY FROM CUSTOM FIELD
+      const rawLeadType = getVal('leadtype', 'updatedacleadtypefield', 'acleadtypefield', 'lead_type');
+      let cleanLeadType = 'Lead';
+      const lowerLT = rawLeadType.toLowerCase();
+
+      if (lowerLT.includes('won')) cleanLeadType = 'Won';
+      else if (lowerLT.includes('opportunity')) cleanLeadType = 'Opportunity';
+      else if (lowerLT.includes('not qualified') || lowerLT.includes('unqualified') || lowerLT.includes('rejected')) cleanLeadType = 'Not Qualified';
+      else if (lowerLT.includes('sql')) cleanLeadType = 'SQL';
+      else if (lowerLT.includes('sal')) cleanLeadType = 'SAL';
+      else if (lowerLT.includes('mql')) cleanLeadType = 'MQL';
+      else if (lowerLT.includes('qualified')) cleanLeadType = 'Qualified';
+      else if (rawLeadType !== '—') cleanLeadType = 'Lead';
+
       const totalEmailsSent = automationData.completed * 2 + (automationData.active > 0 ? 1 : 0) + 1;
       const emailsOpened = Math.min(totalEmailsSent, rawTags.filter((tag) => /opened/i.test(tag)).length || 1);
       const linksClicked = Math.min(emailsOpened, rawTags.filter((tag) => /clicked/i.test(tag)).length || 0);
@@ -278,6 +276,8 @@ app.get('/api/contacts', async (req, res) => {
         leadOwner: ownerVal, 
         pipelineStage: stageVal, 
         leadSource: sourceVal,
+        leadType: cleanLeadType,
+        rawLeadTypeVal: rawLeadType,
         dateAdded: contact.cdate ? contact.cdate.split('T')[0] : '2026-08-01', 
         rawTags, 
         tagDates, 
