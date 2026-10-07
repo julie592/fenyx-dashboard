@@ -6,7 +6,7 @@ import {
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
   CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
   MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, TrendingUp, Sun, FileText, CheckSquare,
-  HelpCircle, Link as LinkIcon, ShieldCheck
+  HelpCircle, Link as LinkIcon, ShieldCheck, Globe
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
@@ -29,6 +29,18 @@ const EVENT_REGISTRY = [
     rejectedTag: 'FPF-Rejected',
     rsvpConfirmedTag: 'RSVP-Confirmed',
     rsvpPlusOneTag: 'RSVP-Plus-one',
+    spendKey: 'Google event Registrants'
+  },
+  {
+    id: 'digicon-2026',
+    name: 'Digicon',
+    registeredTag: 'Digicon',
+    approvedTag: 'Digicon-Approved',
+    attendedTag: 'Digicon-Attended',
+    approvedNoShowTag: 'Digicon-Approved-NoShow',
+    rejectedTag: 'Digicon-Rejected',
+    rsvpConfirmedTag: 'Digicon-RSVP-Confirmed',
+    rsvpPlusOneTag: 'Digicon-RSVP-Plus-one',
     spendKey: 'Google event Registrants'
   }
 ];
@@ -79,6 +91,13 @@ export default function App() {
   const [campaignStartDate, setCampaignStartDate] = useState('');
   const [campaignEndDate, setCampaignEndDate] = useState('');
   const [campaignTypeFilter, setCampaignDateFilter] = useState('all'); 
+
+  // Link Clicks Tab States
+  const [linkDatePreset, setLinkDatePreset] = useState('All');
+  const [linkStartDate, setLinkStartDate] = useState('');
+  const [linkEndDate, setLinkEndDate] = useState('');
+  const [linkSearchQuery, setLinkSearchQuery] = useState('');
+  const [selectedLinkModal, setSelectedLinkModal] = useState(null);
 
   // Event Selection & Modal States
   const [selectedEventId, setSelectedEventId] = useState('google-ph-aug-2026');
@@ -256,6 +275,10 @@ export default function App() {
     return EVENT_REGISTRY.find(e => e.id === selectedEventId) || EVENT_REGISTRY[0];
   }, [selectedEventId]);
 
+  const digiconCampaigns = useMemo(() => {
+    return campaigns.filter(c => String(c.name || '').toLowerCase().includes('digicon'));
+  }, [campaigns]);
+
   const activeEventStats = useMemo(() => {
     let registered = 0, approved = 0, attended = 0, approvedNoShow = 0;
     let rejected = 0, rsvpConfirmed = 0, rsvpPlusOne = 0, eventMqls = 0, growthAuditCount = 0;
@@ -340,7 +363,7 @@ export default function App() {
     const targetClean = tagLeadModal.cleanTag;
     return processedLeads.filter(l => {
       const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
-      return cleanTags.includes(targetClean);
+      return cleanTags.some(t => t.includes(targetClean));
     });
   }, [processedLeads, tagLeadModal]);
 
@@ -470,33 +493,133 @@ export default function App() {
       .slice(0, 4);
   }, [processedLeads]);
 
-  // TOP CLICKED LINKS ANALYTICS ENGINE
-  const topClickedLinks = useMemo(() => {
-    const linkMap = [
-      { url: 'https://www.fenyx.digital/future-proof-forum-2026-growth-audit', name: 'Future Proof Forum Growth Audit Landing Page', clicks: 0 },
-      { url: 'https://fenyx.digital/audit-request', name: 'Growth Audit Booking Form', clicks: 0 },
-      { url: 'https://fenyx.digital/resources/consumer-shift', name: 'Consumer Shift Event Session Materials', clicks: 0 },
-      { url: 'https://fenyx.digital/resources/data-to-strategy', name: 'Data to Strategy Framework Handout', clicks: 0 }
+  const linkPerformanceData = useMemo(() => {
+    const masterLinks = [
+      {
+        id: 'link-1',
+        name: 'Future Proof Forum 2026 Growth Audit Landing Page',
+        url: 'https://www.fenyx.digital/future-proof-forum-2026-growth-audit',
+        keywords: ['futureproofforum2026growthaudit', 'fpfgrowthaudit', 'growth-audit', 'growthaudit'],
+        campaigns: ['Future Proof Forum - Growth Audit Invite', 'FPF Post-Event Nurture Sequence', 'Google Event PH - Confirmation Email']
+      },
+      {
+        id: 'link-2',
+        name: 'Growth Audit Booking & Qualifier Form',
+        url: 'https://fenyx.digital/audit-request',
+        keywords: ['auditrequest', 'booking', 'qualifier', 'auditform'],
+        campaigns: ['Google Event PH - Confirmation Email', 'FPF Post-Event Nurture Sequence']
+      },
+      {
+        id: 'link-3',
+        name: 'Consumer Shift Session Resources Handout',
+        url: 'https://fenyx.digital/resources/consumer-shift',
+        keywords: ['fpfconsumershift', 'consumershift', 'consumershiftresource'],
+        campaigns: ['FPF Resource Nurture Drip - Email #1']
+      },
+      {
+        id: 'link-4',
+        name: 'Data to Strategy Framework Guide',
+        url: 'https://fenyx.digital/resources/data-to-strategy',
+        keywords: ['fpfdatatostrategy', 'datatostrategy'],
+        campaigns: ['FPF Resource Nurture Drip - Email #2']
+      },
+      {
+        id: 'link-5',
+        name: 'Growth Blueprint Playbook & Playbook PDF',
+        url: 'https://fenyx.digital/resources/growth-blueprint',
+        keywords: ['fpfgrowthblueprint', 'growthblueprint'],
+        campaigns: ['FPF Resource Nurture Drip - Email #3']
+      },
+      {
+        id: 'link-6',
+        name: 'All Resource Categories Bundle Download',
+        url: 'https://fenyx.digital/resources/all-categories',
+        keywords: ['fpfallcategories', 'allcategories'],
+        campaigns: ['FPF All-Access VIP Followup']
+      }
     ];
 
-    processedLeads.forEach(lead => {
-      const rawTags = (lead.rawTags || []).map(t => String(t).toLowerCase());
-      if (rawTags.some(t => t.includes('growth-audit') || t.includes('future-proof-forum-2026-growth-audit'))) {
-        linkMap[0].clicks += (lead.linksClicked || 1);
-      }
-      if (rawTags.some(t => t.includes('form') || t.includes('audit'))) {
-        linkMap[1].clicks += 1;
-      }
-      if (rawTags.some(t => t.includes('consumer'))) {
-        linkMap[2].clicks += 1;
-      }
-      if (rawTags.some(t => t.includes('data'))) {
-        linkMap[3].clicks += 1;
-      }
-    });
+    return masterLinks.map(link => {
+      const clickers = processedLeads.filter(lead => {
+        const cleanTags = (lead.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
+        const rawTagsLower = (lead.rawTags || []).map(t => String(t).toLowerCase());
 
-    return linkMap.sort((a, b) => b.clicks - a.clicks);
-  }, [processedLeads]);
+        const matchesKeyword = link.keywords.some(kw => 
+          cleanTags.some(t => t.includes(kw)) || rawTagsLower.some(t => t.includes(kw))
+        );
+
+        if (!matchesKeyword) return false;
+
+        let actionDate = null;
+        const tagDates = lead.tagDates || {};
+        Object.entries(tagDates).forEach(([tag, dStr]) => {
+          if (link.keywords.some(kw => tag.includes(kw)) && dStr) {
+            actionDate = new Date(dStr);
+          }
+        });
+
+        if (!actionDate && lead.dateAdded && lead.dateAdded !== '—') {
+          actionDate = new Date(lead.dateAdded);
+        }
+
+        if (actionDate && !isNaN(actionDate.getTime())) {
+          if (linkDatePreset === '30d') {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            if (actionDate < thirtyDaysAgo) return false;
+          } else if (linkDatePreset === '90d') {
+            const ninetyDaysAgo = new Date();
+            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+            if (actionDate < ninetyDaysAgo) return false;
+          } else if (linkDatePreset === 'custom') {
+            if (linkStartDate && actionDate < new Date(linkStartDate)) return false;
+            if (linkEndDate && actionDate > new Date(linkEndDate + 'T23:59:59')) return false;
+          }
+        }
+
+        return true;
+      }).map(lead => {
+        let timeStr = 'Recent Click';
+        const tagDates = lead.tagDates || {};
+        const matchedTag = Object.keys(tagDates).find(t => link.keywords.some(kw => t.includes(kw)));
+        if (matchedTag && tagDates[matchedTag]) {
+          const d = new Date(tagDates[matchedTag]);
+          if (!isNaN(d.getTime())) {
+            timeStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+          }
+        } else if (lead.dateAdded && lead.dateAdded !== '—') {
+          timeStr = lead.dateAdded;
+        }
+
+        return { ...lead, clickTimestamp: timeStr };
+      });
+
+      return {
+        ...link,
+        clickCount: clickers.length,
+        clickers
+      };
+    });
+  }, [processedLeads, linkDatePreset, linkStartDate, linkEndDate]);
+
+  const filteredLinksList = useMemo(() => {
+    return linkPerformanceData.filter(item => {
+      const q = linkSearchQuery.toLowerCase();
+      return item.name.toLowerCase().includes(q) || item.url.toLowerCase().includes(q);
+    });
+  }, [linkPerformanceData, linkSearchQuery]);
+
+  const totalLinkClicksCount = useMemo(() => {
+    return linkPerformanceData.reduce((sum, item) => sum + item.clickCount, 0);
+  }, [linkPerformanceData]);
+
+  const uniqueLinkClickersCount = useMemo(() => {
+    const set = new Set();
+    linkPerformanceData.forEach(item => {
+      item.clickers.forEach(c => set.add(c.id));
+    });
+    return set.size;
+  }, [linkPerformanceData]);
 
   const handleSendMessage = (textToSend) => {
     const query = (textToSend || chatInput).trim();
@@ -641,10 +764,6 @@ export default function App() {
     });
   }, [processedLeads, searchQuery, filterLeadType, filterPipeline]);
 
-  const handleSpendInputChange = (source, value) => {
-    setSpendSettings(prev => ({ ...prev, [source]: value }));
-  };
-
   const openSurveyModal = (lead) => {
     setSelectedSurveyLead(lead);
     
@@ -741,12 +860,12 @@ export default function App() {
           </div>
         </div>
 
-        {/* RE-ARRANGED TABS INCLUDING NEW LEGEND TAB */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 border-t border-slate-100 text-sm font-medium">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart2 },
             { id: 'leads', label: `All leads (${processedLeads.length})`, icon: Users },
             { id: 'deals', label: `Deals (${dealLeads.length})`, icon: Briefcase },
+            { id: 'link-clicks', label: 'Link Clicks', icon: LinkIcon },
             { id: 'events', label: 'Events', icon: Calendar },
             { id: 'campaigns', label: `Campaigns (${filteredCampaigns.length})`, icon: Mail },
             { id: 'automations', label: `Automations (${automations.length})`, icon: Layers },
@@ -778,8 +897,6 @@ export default function App() {
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            
-            {/* ROW 1: FINANCIAL SCORECARDS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="p-4 rounded-xl border text-emerald-900 bg-emerald-50 border-emerald-200 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Total Ad Spend</p>
@@ -806,7 +923,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* ROW 2: ALL 8 LEAD TYPE SCORECARDS */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
               {LEAD_STAGES.map((stg) => {
                 const count = leadTypeCounts[stg.name] || 0;
@@ -821,7 +937,6 @@ export default function App() {
               })}
             </div>
 
-            {/* ROW 3: VISUAL LEAD CONVERSION FUNNEL */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
               <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                 <div>
@@ -856,7 +971,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* ROW 4: LEAD SOURCE PERFORMANCE TABLE */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                 <div>
@@ -907,7 +1021,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* ROW 5: ROLES & ENGAGEMENT FEED */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200">
@@ -1179,8 +1292,6 @@ export default function App() {
         {/* DEALS TAB */}
         {activeTab === 'deals' && (
           <div className="space-y-8">
-            
-            {/* PIPELINE STAGE SUMMARY VISUALIZATION */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
               <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                 <div>
@@ -1207,7 +1318,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* DEALS CONTACT TABLE */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">Active Deals List</h3>
@@ -1275,7 +1385,156 @@ export default function App() {
           </div>
         )}
 
-        {/* EVENTS TAB */}
+        {/* LINK CLICKS TAB */}
+        {activeTab === 'link-clicks' && (
+          <div className="space-y-8">
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Calendar className="h-4 w-4 text-slate-400" />
+                <span className="text-xs font-bold text-slate-700">Date Range:</span>
+                <select
+                  value={linkDatePreset}
+                  onChange={e => setLinkDatePreset(e.target.value)}
+                  className="text-xs border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="All">All Time</option>
+                  <option value="30d">Last 30 Days</option>
+                  <option value="90d">Last 90 Days</option>
+                  <option value="custom">Custom Date Range</option>
+                </select>
+              </div>
+
+              <div className="relative flex-1 max-w-xs min-w-[200px]">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by link title or URL..."
+                  value={linkSearchQuery}
+                  onChange={e => setLinkSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              {linkDatePreset === 'custom' && (
+                <div className="flex items-center space-x-3 text-xs">
+                  <input
+                    type="date"
+                    value={linkStartDate}
+                    onChange={e => setLinkStartDate(e.target.value)}
+                    className="border border-slate-300 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-slate-400">to</span>
+                  <input
+                    type="date"
+                    value={linkEndDate}
+                    onChange={e => setLinkEndDate(e.target.value)}
+                    className="border border-slate-300 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Monitored Links</p>
+                <p className="text-3xl font-extrabold text-slate-900 mt-1">{linkPerformanceData.length}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Campaign & Nurture Destinations</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-blue-50 border-blue-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Total Click Events</p>
+                <p className="text-3xl font-extrabold text-blue-900 mt-1">{totalLinkClicksCount}</p>
+                <p className="text-[11px] text-blue-600 mt-0.5">ActiveCampaign recorded clicks</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-indigo-50 border-indigo-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Unique Clickers</p>
+                <p className="text-3xl font-extrabold text-indigo-900 mt-1">{uniqueLinkClickersCount}</p>
+                <p className="text-[11px] text-indigo-600 mt-0.5">Engaged contact profiles</p>
+              </div>
+
+              <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-200 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Top Destination</p>
+                <p className="text-sm font-extrabold text-emerald-950 mt-1 truncate">
+                  {filteredLinksList[0]?.name || 'Growth Audit Page'}
+                </p>
+                <p className="text-[11px] text-emerald-600 mt-0.5">{filteredLinksList[0]?.clickCount || 0} Total Clicks</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Destination Links & Campaign Deployments</h3>
+                  <p className="text-xs text-slate-500">Real-time click engagement and campaign usage mapping</p>
+                </div>
+                <span className="text-xs font-extrabold bg-blue-50 text-blue-800 border border-blue-200 px-3 py-1 rounded-full flex items-center space-x-1">
+                  <LinkIcon className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Real-Time AC Sync</span>
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3">Link Title & Target URL</th>
+                      <th className="px-6 py-3">Campaigns Used In</th>
+                      <th className="px-6 py-3">Total Clicks</th>
+                      <th className="px-6 py-3 text-right">Clicker Breakdown</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {filteredLinksList.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50 transition">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-900 text-xs">{item.name}</div>
+                          <a 
+                            href={item.url} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="text-[11px] text-indigo-600 hover:underline inline-flex items-center space-x-1 mt-0.5"
+                          >
+                            <span className="truncate max-w-xs">{item.url}</span>
+                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                          </a>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-1.5">
+                            {item.campaigns.map((cmp, i) => (
+                              <span key={i} className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-medium px-2 py-0.5 rounded-md">
+                                {cmp}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className="text-base font-extrabold text-slate-900">{item.clickCount}</span>
+                          <span className="text-xs text-slate-400 font-medium ml-1">clicks</span>
+                        </td>
+
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={() => setSelectedLinkModal(item)}
+                            className="inline-flex items-center space-x-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-1.5 rounded-lg transition cursor-pointer"
+                          >
+                            <Users className="h-3.5 w-3.5" />
+                            <span>View Clickers ({item.clickers.length})</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* EVENTS TAB WITH DIGICON CAMPAIGNS & WILL BE IN DIGICON BUTTON */}
         {activeTab === 'events' && (
           <div className="space-y-8">
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-wrap items-center justify-between gap-4">
@@ -1312,6 +1571,72 @@ export default function App() {
                 </button>
               </div>
             </div>
+
+            {/* DIGICON CAMPAIGN PERFORMANCE & ATTENDEE INTENT BLOCK */}
+            {activeEvent.id === 'digicon-2026' && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Digicon Campaign Performance & Attendee Intent</h3>
+                    <p className="text-xs text-slate-500">Emails containing 'Digicon' in their campaign name and attendee link action tracking</p>
+                  </div>
+                  <span className="text-xs font-extrabold bg-purple-50 text-purple-800 border border-purple-200 px-3 py-1 rounded-full">
+                    {digiconCampaigns.length} Digicon Emails
+                  </span>
+                </div>
+
+                {digiconCampaigns.length === 0 ? (
+                  <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs text-slate-500 italic space-y-1">
+                    <p className="font-semibold text-slate-700">No active Digicon campaigns found.</p>
+                    <p>Campaigns with "Digicon" in their title will automatically appear here upon sync.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {digiconCampaigns.map(c => {
+                      const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 1;
+                      const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
+                      const uniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
+                      const openRate = ((uniqueOpens / sendAmt) * 100).toFixed(1);
+                      const clickRate = ((uniqueClicks / sendAmt) * 100).toFixed(1);
+
+                      return (
+                        <div key={c.id} className="p-4 border rounded-xl flex flex-wrap justify-between items-center bg-slate-50/50 hover:bg-slate-50 transition gap-4">
+                          <div className="space-y-1 min-w-[240px]">
+                            <div className="font-bold text-slate-900 text-sm flex items-center space-x-2">
+                              <span>{c.name}</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                                Digicon Track
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-500 flex items-center space-x-2">
+                              <span>Recipients: <strong className="text-slate-700">{sendAmt.toLocaleString()}</strong></span>
+                              <span>•</span>
+                              <span>{uniqueOpens.toLocaleString()} opens ({openRate}%)</span>
+                              <span>•</span>
+                              <span>{uniqueClicks.toLocaleString()} clicks ({clickRate}%)</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-3">
+                            <button
+                              onClick={() => setTagLeadModal({
+                                title: 'Contacts Attending Digicon (Tagged: Digicon)',
+                                cleanTag: 'digicon',
+                                isGrowthAudit: false
+                              })}
+                              className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-md cursor-pointer"
+                            >
+                              <Users className="h-4 w-4" />
+                              <span>Will be in Digicon</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
               <div className="p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
@@ -1550,7 +1875,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ORGANIZED CAMPAIGNS TAB WITH MOST CLICKED LINKS */}
+        {/* ORGANIZED CAMPAIGNS TAB */}
         {activeTab === 'campaigns' && (
           <div className="space-y-6">
             
@@ -1654,45 +1979,6 @@ export default function App() {
                 </div>
                 <p className="text-2xl font-extrabold text-amber-900">{campaignScorecard.clickRate}%</p>
                 <p className="text-[11px] text-amber-600">Unique Clicks / Unique Sent</p>
-              </div>
-            </div>
-
-            {/* NEW: MOST CLICKED LINKS ANALYTICS CARD */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <LinkIcon className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">Most Clicked Destination Links</h3>
-                    <p className="text-xs text-slate-500">Highest volume URL clicks from campaign and nurture emails</p>
-                  </div>
-                </div>
-                <span className="text-xs font-extrabold bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-100">
-                  Engagement Drivers
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {topClickedLinks.map((item, idx) => (
-                  <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center space-x-4">
-                    <div className="space-y-1 min-w-0 flex-1">
-                      <p className="font-bold text-slate-900 text-xs truncate">{item.name}</p>
-                      <a 
-                        href={item.url} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="text-[10px] text-indigo-600 hover:underline flex items-center space-x-1 truncate"
-                      >
-                        <span className="truncate">{item.url}</span>
-                        <ExternalLink className="h-2.5 w-2.5 flex-shrink-0 inline" />
-                      </a>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <span className="text-xl font-extrabold text-blue-900">{item.clicks}</span>
-                      <p className="text-[10px] text-slate-400 font-medium">Recorded Clicks</p>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
 
@@ -1900,7 +2186,7 @@ export default function App() {
           </div>
         )}
 
-        {/* NEW LEGEND TAB MATCHING THE DEFINITIONS SCHEMA */}
+        {/* LEGEND TAB */}
         {activeTab === 'legend' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
@@ -2053,6 +2339,87 @@ export default function App() {
             </button>
           </form>
 
+        </div>
+      )}
+
+      {/* CLICKERS CONTACT LIST MODAL FOR LINK CLICKS TAB */}
+      {selectedLinkModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">{selectedLinkModal.name}</h3>
+                <a 
+                  href={selectedLinkModal.url} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="text-xs text-indigo-600 hover:underline flex items-center space-x-1"
+                >
+                  <span className="truncate max-w-md">{selectedLinkModal.url}</span>
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+              <button
+                onClick={() => setSelectedLinkModal(null)}
+                className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-500 transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <div className="flex justify-between items-center bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+                <span>Showing <strong>{selectedLinkModal.clickers.length}</strong> contacts who clicked this destination link</span>
+                <span className="font-bold bg-blue-100 text-blue-900 px-2.5 py-0.5 rounded-full">Live ActiveCampaign Stream</span>
+              </div>
+
+              {selectedLinkModal.clickers.length === 0 ? (
+                <div className="text-center py-8 text-xs text-slate-400 italic">
+                  No contact click records found within the selected date filter.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <table className="w-full text-left text-xs text-slate-600">
+                    <thead className="bg-slate-50 font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-2.5">Contact Name</th>
+                        <th className="px-4 py-2.5">Email Address</th>
+                        <th className="px-4 py-2.5">Company</th>
+                        <th className="px-4 py-2.5">Role</th>
+                        <th className="px-4 py-2.5">Lead Stage</th>
+                        <th className="px-4 py-2.5 text-right">Click Timestamp</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {selectedLinkModal.clickers.map(lead => (
+                        <tr key={lead.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-2.5 font-bold text-slate-900">{lead.fullName}</td>
+                          <td className="px-4 py-2.5 text-slate-500">{lead.email}</td>
+                          <td className="px-4 py-2.5 font-medium text-slate-700">{lead.company}</td>
+                          <td className="px-4 py-2.5 text-slate-600">{lead.role}</td>
+                          <td className="px-4 py-2.5">
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-100 text-indigo-800">
+                              {lead.leadType}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-mono text-slate-500">{lead.clickTimestamp}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 text-right">
+              <button
+                onClick={() => setSelectedLinkModal(null)}
+                className="px-4 py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-900 transition cursor-pointer"
+              >
+                Close List
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
