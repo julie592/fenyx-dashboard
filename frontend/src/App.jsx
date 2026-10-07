@@ -147,7 +147,7 @@ export default function App() {
       if (spendRes.status === 'fulfilled' && spendRes.value.ok) {
         const data = await spendRes.value.json();
         if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-          setSpendSettings(data);
+          setSpendSettings(prev => ({ ...DEFAULT_SPEND, ...data }));
         }
       }
 
@@ -185,6 +185,7 @@ export default function App() {
     Object.keys(spendSettings).forEach(k => {
       cleanSpend[k] = Number(spendSettings[k]) || 0;
     });
+    setSpendSettings(cleanSpend);
     await saveSpendToBackend(cleanSpend);
     setSpendSaveStatus('saved');
     setTimeout(() => setSpendSaveStatus('idle'), 3000);
