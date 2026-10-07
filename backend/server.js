@@ -39,21 +39,30 @@ const memoryCache = {
   spendSettings: { ...DEFAULT_SPEND_SETTINGS }
 };
 
+// Robust database connection await helper
 async function ensureDbConnected() {
-  if (mongoose.connection.readyState !== 1 && MONGO_URI) {
-    try {
-      await mongoose.connect(MONGO_URI);
-      console.log('✅ Connected/Reconnected to MongoDB Atlas!');
-    } catch (err) {
-      console.error('❌ MongoDB Connection Error:', err.message);
-    }
+  if (!MONGO_URI) return;
+  if (mongoose.connection.readyState === 1) return; // Connected
+  if (mongoose.connection.readyState === 2) {
+    // Currently connecting - wait for connection event or timeout
+    await new Promise((resolve) => {
+      mongoose.connection.once('connected', resolve);
+      setTimeout(resolve, 5000);
+    });
+    return;
+  }
+  try {
+    await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 });
+    console.log('✅ Connected to MongoDB Atlas!');
+  } catch (err) {
+    console.error('❌ MongoDB Connection Error:', err.message);
   }
 }
 
 if (MONGO_URI) {
   ensureDbConnected().then(async () => {
     try {
-      const spendDoc = await Config.findOne({ key: 'spendSettings' });
+      const spendDoc = await Config.findOne({ key: 'spendSettings' }).lean();
       if (spendDoc?.data && Object.keys(spendDoc.data).length > 0) {
         memoryCache.spendSettings = spendDoc.data;
       }
@@ -67,22 +76,14 @@ if (MONGO_URI) {
 
 async function getConfig(key, fallback) {
   await ensureDbConnected();
-  if (mongoose.connection.readyState === 1) {
-    try {
-      const record = await Config.findOne({ key });
-      if (record?.data && Object.keys(record.data).length > 0) {
-        memoryCache[key] = record.data;
-        return record.data;
-      } else if (!record) {
-        const newRecord = new Config({ key, data: fallback });
-        newRecord.markModified('data');
-        await newRecord.save();
-        memoryCache[key] = fallback;
-        return fallback;
-      }
-    } catch (err) {
-      console.error(`Error reading ${key} from MongoDB:`, err.message);
+  try {
+    const record = await Config.findOne({ key }).lean();
+    if (record?.data && typeof record.data === 'object' && Object.keys(record.data).length > 0) {
+      memoryCache[key] = record.data;
+      return record.data;
     }
+  } catch (err) {
+    console.error(`Error reading ${key} from MongoDB:`, err.message);
   }
   return memoryCache[key] || fallback;
 }
@@ -90,25 +91,18 @@ async function getConfig(key, fallback) {
 async function saveConfig(key, data) {
   memoryCache[key] = data; // Immediate in-memory sync
   await ensureDbConnected();
-  if (mongoose.connection.readyState === 1) {
-    try {
-      let record = await Config.findOne({ key });
-      if (!record) {
-        record = new Config({ key, data });
-      } else {
-        record.data = data;
-      }
-      record.markModified('data'); // Explicitly notify Mongoose of Mixed object changes
-      await record.save();
-      console.log(`✅ Permanently saved ${key} to MongoDB Atlas`);
-      return true;
-    } catch (err) {
-      console.error(`❌ Error writing ${key} to Mongo:`, err.message);
-    }
-  } else {
-    console.warn(`⚠️️ DB not connected. Saved to memory cache only.`);
+  try {
+    await Config.findOneAndUpdate(
+      { key },
+      { $set: { data } },
+      { upsert: true, new: true, runValidators: true }
+    );
+    console.log(`✅ Permanently saved ${key} to MongoDB Atlas:`, JSON.stringify(data));
+    return true;
+  } catch (err) {
+    console.error(`❌ Error writing ${key} to Mongo:`, err.message);
+    return false;
   }
-  return false;
 }
 
 app.get('/api/spend-settings', async (req, res) => {
@@ -247,7 +241,6 @@ app.get('/api/contacts', async (req, res) => {
       const sourceVal = getVal('leadsource', 'source', 'utmsource', 'channel') !== '—' ? getVal('leadsource', 'source', 'utmsource', 'channel') : 'Unspecified';
       const stageVal = getVal('pipelinestage', 'pipeline_stage');
 
-      // EXTRACT LEAD TYPE DIRECTLY FROM CUSTOM FIELD
       const rawLeadType = getVal('leadtype', 'updatedacleadtypefield', 'acleadtypefield', 'lead_type');
       let cleanLeadType = 'Lead';
       const lowerLT = rawLeadType.toLowerCase();
