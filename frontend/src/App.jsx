@@ -12,7 +12,7 @@ import {
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
 
 const DEFAULT_SPEND = {
-  'Google event Registrants': 0,
+  'Google event Registrants': 4760.39,
   'Google Partner Referral': 0,
   'Website Growth Audit Form': 0,
   'Internal leads': 0
@@ -183,7 +183,7 @@ export default function App() {
     setSpendSaveStatus('saving');
     const cleanSpend = {};
     Object.keys(spendSettings).forEach(k => {
-      cleanSpend[k] = Number(spendSettings[k]) || 0;
+      cleanSpend[k] = parseFloat(spendSettings[k]) || 0;
     });
     setSpendSettings(cleanSpend);
     await saveSpendToBackend(cleanSpend);
@@ -279,6 +279,13 @@ export default function App() {
   const digiconCampaigns = useMemo(() => {
     return campaigns.filter(c => String(c.name || '').toLowerCase().includes('digicon'));
   }, [campaigns]);
+
+  const digiconConfirmedCount = useMemo(() => {
+    return processedLeads.filter(l => {
+      const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
+      return cleanTags.includes('digicon');
+    }).length;
+  }, [processedLeads]);
 
   const activeEventStats = useMemo(() => {
     let registered = 0, approved = 0, attended = 0, approvedNoShow = 0;
@@ -1573,305 +1580,347 @@ export default function App() {
               </div>
             </div>
 
-            {/* DIGICON CAMPAIGN PERFORMANCE & ATTENDEE INTENT BLOCK */}
+            {/* DIGICON SPECIFIC BANNER & CAMPAIGN MODULE */}
             {activeEvent.id === 'digicon-2026' && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
-                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">Digicon Campaign Performance & Attendee Intent</h3>
-                    <p className="text-xs text-slate-500">Emails containing 'Digicon' in their campaign name and attendee link action tracking</p>
+              <div className="space-y-6">
+                <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white p-6 rounded-2xl shadow-md flex flex-wrap items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <Award className="h-5 w-5 text-purple-300" />
+                      <h3 className="text-lg font-bold">Digicon Event Tracker</h3>
+                    </div>
+                    <p className="text-xs text-purple-200/80">Live campaign response & confirmed attendee tracking from ActiveCampaign</p>
                   </div>
-                  <span className="text-xs font-extrabold bg-purple-50 text-purple-800 border border-purple-200 px-3 py-1 rounded-full">
-                    {digiconCampaigns.length} Digicon Emails
-                  </span>
+
+                  <div className="bg-white/10 backdrop-blur-md px-6 py-3 rounded-xl border border-white/10 text-center">
+                    <p className="text-[11px] uppercase tracking-wider text-purple-200 font-bold">Total Confirmed for Digicon</p>
+                    <p className="text-3xl font-black text-white mt-0.5">{digiconConfirmedCount}</p>
+                  </div>
                 </div>
 
-                {digiconCampaigns.length === 0 ? (
-                  <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs text-slate-500 italic space-y-1">
-                    <p className="font-semibold text-slate-700">No active Digicon campaigns found.</p>
-                    <p>Campaigns with "Digicon" in their title will automatically appear here upon sync.</p>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                  <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900">Digicon Email Campaigns</h3>
+                      <p className="text-xs text-slate-500">Emails with 'Digicon' in campaign title and attendee link click tracking</p>
+                    </div>
+                    <span className="text-xs font-extrabold bg-purple-50 text-purple-800 border border-purple-200 px-3 py-1 rounded-full">
+                      {digiconCampaigns.length} Digicon Emails
+                    </span>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {digiconCampaigns.map(c => {
-                      const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 1;
-                      const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
-                      const uniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
-                      const openRate = ((uniqueOpens / sendAmt) * 100).toFixed(1);
-                      const clickRate = ((uniqueClicks / sendAmt) * 100).toFixed(1);
 
-                      return (
-                        <div key={c.id} className="p-4 border rounded-xl flex flex-wrap justify-between items-center bg-slate-50/50 hover:bg-slate-50 transition gap-4">
-                          <div className="space-y-1 min-w-[240px]">
-                            <div className="font-bold text-slate-900 text-sm flex items-center space-x-2">
-                              <span>{c.name}</span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
-                                Digicon Track
-                              </span>
+                  {digiconCampaigns.length === 0 ? (
+                    <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs text-slate-500 italic space-y-1">
+                      <p className="font-semibold text-slate-700">No active Digicon campaigns found.</p>
+                      <p>Campaigns with "Digicon" in their title will automatically appear here upon sync.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {digiconCampaigns.map(c => {
+                        const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 0;
+                        const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
+                        const uniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
+                        const openRate = sendAmt > 0 ? ((uniqueOpens / sendAmt) * 100).toFixed(1) : '0.0';
+                        const clickRate = sendAmt > 0 ? ((uniqueClicks / sendAmt) * 100).toFixed(1) : '0.0';
+
+                        return (
+                          <div key={c.id} className="p-5 border rounded-2xl bg-slate-50/60 hover:bg-slate-50 transition shadow-xs space-y-4">
+                            <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-200/80 pb-3">
+                              <div className="flex items-center space-x-2">
+                                <h4 className="font-extrabold text-slate-900 text-base">{c.name}</h4>
+                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                  Digicon Track
+                                </span>
+                              </div>
+                              
+                              <button
+                                onClick={() => setTagLeadModal({
+                                  title: 'Contacts Attending Digicon (Tagged: Digicon)',
+                                  cleanTag: 'digicon',
+                                  isGrowthAudit: false
+                                })}
+                                className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-sm cursor-pointer"
+                              >
+                                <Users className="h-4 w-4" />
+                                <span>Will be in Digicon</span>
+                              </button>
                             </div>
-                            <div className="text-xs text-slate-500 flex items-center space-x-2">
-                              <span>Recipients: <strong className="text-slate-700">{sendAmt.toLocaleString()}</strong></span>
-                              <span>•</span>
-                              <span>{uniqueOpens.toLocaleString()} opens ({openRate}%)</span>
-                              <span>•</span>
-                              <span>{uniqueClicks.toLocaleString()} clicks ({clickRate}%)</span>
+
+                            {/* LARGER NUMBERS METRICS GRID */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                              <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recipients Sent</p>
+                                <p className="text-2xl font-black text-slate-900 mt-1">{sendAmt.toLocaleString()}</p>
+                              </div>
+
+                              <div className="p-3.5 bg-white rounded-xl border border-indigo-100 shadow-2xs">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Unique Opens</p>
+                                <div className="flex items-baseline space-x-1.5 mt-1">
+                                  <p className="text-2xl font-black text-indigo-950">{uniqueOpens.toLocaleString()}</p>
+                                  <span className="text-xs font-extrabold text-indigo-600">({openRate}%)</span>
+                                </div>
+                              </div>
+
+                              <div className="p-3.5 bg-white rounded-xl border border-blue-100 shadow-2xs">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Unique Clicks</p>
+                                <div className="flex items-baseline space-x-1.5 mt-1">
+                                  <p className="text-2xl font-black text-blue-950">{uniqueClicks.toLocaleString()}</p>
+                                  <span className="text-xs font-extrabold text-blue-600">({clickRate}%)</span>
+                                </div>
+                              </div>
+
+                              <div className="p-3.5 bg-purple-50/80 rounded-xl border border-purple-200 shadow-2xs">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-purple-700">Confirmed Digicon</p>
+                                <p className="text-2xl font-black text-purple-950 mt-1">{digiconConfirmedCount}</p>
+                              </div>
                             </div>
                           </div>
-
-                          <div className="flex items-center space-x-3">
-                            <button
-                              onClick={() => setTagLeadModal({
-                                title: 'Contacts Attending Digicon (Tagged: Digicon)',
-                                cleanTag: 'digicon',
-                                isGrowthAudit: false
-                              })}
-                              className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-md cursor-pointer"
-                            >
-                              <Users className="h-4 w-4" />
-                              <span>Will be in Digicon</span>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-              <div className="p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Registered</p>
-                <p className="text-2xl font-extrabold text-slate-900 mt-1">{activeEventStats.registered}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Total event signups</p>
-              </div>
+            {/* DEFAULT SCORECARDS & VISUALIZERS HIDDEN FOR DIGICON */}
+            {activeEvent.id !== 'digicon-2026' && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+                  <div className="p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Registered</p>
+                    <p className="text-2xl font-extrabold text-slate-900 mt-1">{activeEventStats.registered}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Total event signups</p>
+                  </div>
 
-              <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Approved</p>
-                <p className="text-2xl font-extrabold text-emerald-900 mt-1">{activeEventStats.approved}</p>
-                <p className="text-[11px] text-emerald-600 mt-0.5">Strict FPF-Approved tag</p>
-              </div>
+                  <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-200 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Approved</p>
+                    <p className="text-2xl font-extrabold text-emerald-900 mt-1">{activeEventStats.approved}</p>
+                    <p className="text-[11px] text-emerald-600 mt-0.5">Strict FPF-Approved tag</p>
+                  </div>
 
-              <div className="p-4 rounded-xl border bg-indigo-50 border-indigo-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Attended</p>
-                <p className="text-2xl font-extrabold text-indigo-900 mt-1">{activeEventStats.attended}</p>
-                <p className="text-[11px] text-indigo-600 mt-0.5">FPF-Attended tag</p>
-              </div>
+                  <div className="p-4 rounded-xl border bg-indigo-50 border-indigo-200 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Attended</p>
+                    <p className="text-2xl font-extrabold text-indigo-900 mt-1">{activeEventStats.attended}</p>
+                    <p className="text-[11px] text-indigo-600 mt-0.5">FPF-Attended tag</p>
+                  </div>
 
-              <div className="p-4 rounded-xl border bg-slate-100 border-slate-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Event Spend</p>
-                <p className="text-2xl font-extrabold text-slate-900 mt-1">${activeEventStats.spend.toLocaleString()}</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">{activeEvent.spendKey}</p>
-              </div>
+                  <div className="p-4 rounded-xl border bg-slate-100 border-slate-200 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Event Spend</p>
+                    <p className="text-2xl font-extrabold text-slate-900 mt-1">${activeEventStats.spend.toLocaleString()}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{activeEvent.spendKey}</p>
+                  </div>
 
-              <div className="p-4 rounded-xl border bg-blue-50 border-blue-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Cost / Registrant</p>
-                <p className="text-2xl font-extrabold text-blue-900 mt-1">
-                  {activeEventStats.registered > 0 ? `$${activeEventStats.costPerRegistrant.toFixed(2)}` : '$0.00'}
-                </p>
-                <p className="text-[11px] text-blue-600 mt-0.5">Spend / Registered</p>
-              </div>
+                  <div className="p-4 rounded-xl border bg-blue-50 border-blue-200 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Cost / Registrant</p>
+                    <p className="text-2xl font-extrabold text-blue-900 mt-1">
+                      {activeEventStats.registered > 0 ? `$${activeEventStats.costPerRegistrant.toFixed(2)}` : '$0.00'}
+                    </p>
+                    <p className="text-[11px] text-blue-600 mt-0.5">Spend / Registered</p>
+                  </div>
 
-              <div className="p-4 rounded-xl border bg-purple-50 border-purple-200 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-purple-700">Cost / MQL</p>
-                <p className="text-2xl font-extrabold text-purple-900 mt-1">
-                  {activeEventStats.eventMqls > 0 ? `$${activeEventStats.costPerMql.toFixed(2)}` : '$0.00'}
-                </p>
-                <p className="text-[11px] text-purple-600 mt-0.5">{activeEventStats.eventMqls} Event MQLs</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden space-y-0">
-                <div className="px-6 py-4 border-b border-slate-200">
-                  <h3 className="text-base font-bold text-slate-900">Registrant Qualification Breakdown</h3>
-                  <p className="text-xs text-slate-500">Strict tag counts for {activeEvent.name}</p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm text-slate-600">
-                    <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                      <tr>
-                        <th className="px-6 py-3">Status Category</th>
-                        <th className="px-6 py-3">Tag Identifier</th>
-                        <th className="px-6 py-3">Count</th>
-                        <th className="px-6 py-3">% of Registered</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      <tr className="hover:bg-slate-50">
-                        <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                          <span>Approved</span>
-                        </td>
-                        <td className="px-6 py-4 text-xs font-mono text-slate-500">{activeEvent.approvedTag}</td>
-                        <td className="px-6 py-4 font-bold text-emerald-700">{activeEventStats.approved}</td>
-                        <td className="px-6 py-4 font-medium">
-                          {activeEventStats.registered > 0 ? ((activeEventStats.approved / activeEventStats.registered) * 100).toFixed(1) : 0}%
-                        </td>
-                      </tr>
-
-                      <tr className="hover:bg-slate-50">
-                        <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
-                          <Award className="h-4 w-4 text-indigo-500" />
-                          <span>Attended</span>
-                        </td>
-                        <td className="px-6 py-4 text-xs font-mono text-slate-500">{activeEvent.attendedTag}</td>
-                        <td className="px-6 py-4 font-bold text-indigo-700">{activeEventStats.attended}</td>
-                        <td className="px-6 py-4 font-medium">
-                          {activeEventStats.registered > 0 ? ((activeEventStats.attended / activeEventStats.registered) * 100).toFixed(1) : 0}%
-                        </td>
-                      </tr>
-
-                      <tr className="hover:bg-slate-50">
-                        <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
-                          <Clock className="h-4 w-4 text-amber-500" />
-                          <span>Approved, No Show</span>
-                        </td>
-                        <td className="px-6 py-4 text-xs font-mono text-slate-500">{activeEvent.approvedNoShowTag}</td>
-                        <td className="px-6 py-4 font-bold text-amber-700">{activeEventStats.approvedNoShow}</td>
-                        <td className="px-6 py-4 font-medium">
-                          {activeEventStats.registered > 0 ? ((activeEventStats.approvedNoShow / activeEventStats.registered) * 100).toFixed(1) : 0}%
-                        </td>
-                      </tr>
-
-                      <tr className="hover:bg-slate-50">
-                        <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
-                          <XCircle className="h-4 w-4 text-red-500" />
-                          <span>Rejected</span>
-                        </td>
-                        <td className="px-6 py-4 text-xs font-mono text-slate-500">{activeEvent.rejectedTag}</td>
-                        <td className="px-6 py-4 font-bold text-red-700">{activeEventStats.rejected}</td>
-                        <td className="px-6 py-4 font-medium">
-                          {activeEventStats.registered > 0 ? ((activeEventStats.rejected / activeEventStats.registered) * 100).toFixed(1) : 0}%
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
-                <div className="border-b border-slate-100 pb-3">
-                  <h3 className="text-base font-bold text-slate-900">RSVP Confirmation Visualizer</h3>
-                  <p className="text-xs text-slate-500">Visual breakdown of approved candidates vs confirmed RSVPs & plus ones</p>
+                  <div className="p-4 rounded-xl border bg-purple-50 border-purple-200 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wider text-purple-700">Cost / MQL</p>
+                    <p className="text-2xl font-extrabold text-purple-900 mt-1">
+                      {activeEventStats.eventMqls > 0 ? `$${activeEventStats.costPerMql.toFixed(2)}` : '$0.00'}
+                    </p>
+                    <p className="text-[11px] text-purple-600 mt-0.5">{activeEventStats.eventMqls} Event MQLs</p>
+                  </div>
                 </div>
 
-                <div className="space-y-5">
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-slate-800 flex items-center space-x-1.5">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                        <span>Approved Applicants ({activeEvent.approvedTag})</span>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden space-y-0">
+                    <div className="px-6 py-4 border-b border-slate-200">
+                      <h3 className="text-base font-bold text-slate-900">Registrant Qualification Breakdown</h3>
+                      <p className="text-xs text-slate-500">Strict tag counts for {activeEvent.name}</p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm text-slate-600">
+                        <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                          <tr>
+                            <th className="px-6 py-3">Status Category</th>
+                            <th className="px-6 py-3">Tag Identifier</th>
+                            <th className="px-6 py-3">Count</th>
+                            <th className="px-6 py-3">% of Registered</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          <tr className="hover:bg-slate-50">
+                            <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              <span>Approved</span>
+                            </td>
+                            <td className="px-6 py-4 text-xs font-mono text-slate-500">{activeEvent.approvedTag}</td>
+                            <td className="px-6 py-4 font-bold text-emerald-700">{activeEventStats.approved}</td>
+                            <td className="px-6 py-4 font-medium">
+                              {activeEventStats.registered > 0 ? ((activeEventStats.approved / activeEventStats.registered) * 100).toFixed(1) : 0}%
+                            </td>
+                          </tr>
+
+                          <tr className="hover:bg-slate-50">
+                            <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
+                              <Award className="h-4 w-4 text-indigo-500" />
+                              <span>Attended</span>
+                            </td>
+                            <td className="px-6 py-4 text-xs font-mono text-slate-500">{activeEvent.attendedTag}</td>
+                            <td className="px-6 py-4 font-bold text-indigo-700">{activeEventStats.attended}</td>
+                            <td className="px-6 py-4 font-medium">
+                              {activeEventStats.registered > 0 ? ((activeEventStats.attended / activeEventStats.registered) * 100).toFixed(1) : 0}%
+                            </td>
+                          </tr>
+
+                          <tr className="hover:bg-slate-50">
+                            <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
+                              <Clock className="h-4 w-4 text-amber-500" />
+                              <span>Approved, No Show</span>
+                            </td>
+                            <td className="px-6 py-4 text-xs font-mono text-slate-500">{activeEvent.approvedNoShowTag}</td>
+                            <td className="px-6 py-4 font-bold text-amber-700">{activeEventStats.approvedNoShow}</td>
+                            <td className="px-6 py-4 font-medium">
+                              {activeEventStats.registered > 0 ? ((activeEventStats.approvedNoShow / activeEventStats.registered) * 100).toFixed(1) : 0}%
+                            </td>
+                          </tr>
+
+                          <tr className="hover:bg-slate-50">
+                            <td className="px-6 py-4 font-bold text-slate-900 flex items-center space-x-2">
+                              <XCircle className="h-4 w-4 text-red-500" />
+                              <span>Rejected</span>
+                            </td>
+                            <td className="px-6 py-4 text-xs font-mono text-slate-500">{activeEvent.rejectedTag}</td>
+                            <td className="px-6 py-4 font-bold text-red-700">{activeEventStats.rejected}</td>
+                            <td className="px-6 py-4 font-medium">
+                              {activeEventStats.registered > 0 ? ((activeEventStats.rejected / activeEventStats.registered) * 100).toFixed(1) : 0}%
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                    <div className="border-b border-slate-100 pb-3">
+                      <h3 className="text-base font-bold text-slate-900">RSVP Confirmation Visualizer</h3>
+                      <p className="text-xs text-slate-500">Visual breakdown of approved candidates vs confirmed RSVPs & plus ones</p>
+                    </div>
+
+                    <div className="space-y-5">
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-slate-800 flex items-center space-x-1.5">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                            <span>Approved Applicants ({activeEvent.approvedTag})</span>
+                          </span>
+                          <span className="font-extrabold text-slate-900">{activeEventStats.approved}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${activeEventStats.registered > 0 ? Math.min(100, (activeEventStats.approved / activeEventStats.registered) * 100) : 0}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-slate-800 flex items-center space-x-1.5">
+                            <UserCheck className="h-3.5 w-3.5 text-indigo-500" />
+                            <span>RSVP Confirmed ({activeEvent.rsvpConfirmedTag})</span>
+                          </span>
+                          <span className="font-extrabold text-slate-900">{activeEventStats.rsvpConfirmed}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${activeEventStats.approved > 0 ? Math.min(100, (activeEventStats.rsvpConfirmed / activeEventStats.approved) * 100) : 0}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-slate-800 flex items-center space-x-1.5">
+                            <UserPlus className="h-3.5 w-3.5 text-amber-500" />
+                            <span>Registered Plus Ones ({activeEvent.rsvpPlusOneTag})</span>
+                          </span>
+                          <span className="font-extrabold text-slate-900">{activeEventStats.rsvpPlusOne}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${activeEventStats.rsvpConfirmed > 0 ? Math.min(100, (activeEventStats.rsvpPlusOne / activeEventStats.rsvpConfirmed) * 100) : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-lg text-xs flex justify-between items-center">
+                      <span className="text-slate-600 font-medium">Estimated Venue Headcount:</span>
+                      <span className="font-extrabold text-indigo-900 text-sm">
+                        {activeEventStats.rsvpConfirmed + activeEventStats.rsvpPlusOne} Total Attendees
                       </span>
-                      <span className="font-extrabold text-slate-900">{activeEventStats.approved}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                        style={{ width: `${activeEventStats.registered > 0 ? Math.min(100, (activeEventStats.approved / activeEventStats.registered) * 100) : 0}%` }}
-                      />
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-slate-800 flex items-center space-x-1.5">
-                        <UserCheck className="h-3.5 w-3.5 text-indigo-500" />
-                        <span>RSVP Confirmed ({activeEvent.rsvpConfirmedTag})</span>
-                      </span>
-                      <span className="font-extrabold text-slate-900">{activeEventStats.rsvpConfirmed}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-indigo-600 h-full rounded-full transition-all duration-500"
-                        style={{ width: `${activeEventStats.approved > 0 ? Math.min(100, (activeEventStats.rsvpConfirmed / activeEventStats.approved) * 100) : 0}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-slate-800 flex items-center space-x-1.5">
-                        <UserPlus className="h-3.5 w-3.5 text-amber-500" />
-                        <span>Registered Plus Ones ({activeEvent.rsvpPlusOneTag})</span>
-                      </span>
-                      <span className="font-extrabold text-slate-900">{activeEventStats.rsvpPlusOne}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-amber-500 h-full rounded-full transition-all duration-500"
-                        style={{ width: `${activeEventStats.rsvpConfirmed > 0 ? Math.min(100, (activeEventStats.rsvpPlusOne / activeEventStats.rsvpConfirmed) * 100) : 0}%` }}
-                      />
-                    </div>
-                  </div>
                 </div>
 
-                <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-lg text-xs flex justify-between items-center">
-                  <span className="text-slate-600 font-medium">Estimated Venue Headcount:</span>
-                  <span className="font-extrabold text-indigo-900 text-sm">
-                    {activeEventStats.rsvpConfirmed + activeEventStats.rsvpPlusOne} Total Attendees
-                  </span>
-                </div>
-              </div>
-
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
-              <div className="border-b border-slate-100 pb-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Email Nurture Responses & Resource Preferences</h3>
-                  <p className="text-xs text-slate-500">Interactive response tracking from post-event and pre-event email workflows. Click any category to view contact list.</p>
-                </div>
-                <span className="text-[10px] font-bold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-full">Interactive Drill-down</span>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                <button
-                  onClick={() => setTagLeadModal({
-                    title: 'Growth Audit Requests (Attendees)',
-                    cleanTag: 'fpfgrowthaudit',
-                    isGrowthAudit: true
-                  })}
-                  className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 hover:from-indigo-100 hover:to-indigo-200/50 p-4 rounded-xl border border-indigo-200 text-left transition space-y-2 group shadow-xs cursor-pointer"
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Nurture Action #1</span>
-                    <ArrowUpRight className="h-4 w-4 text-indigo-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                  <div className="border-b border-slate-100 pb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900">Email Nurture Responses & Resource Preferences</h3>
+                      <p className="text-xs text-slate-500">Interactive response tracking from post-event and pre-event email workflows. Click any category to view contact list.</p>
+                    </div>
+                    <span className="text-[10px] font-bold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-full">Interactive Drill-down</span>
                   </div>
-                  <h4 className="font-bold text-slate-900 text-xs leading-snug">Growth Audit Request</h4>
-                  <p className="text-2xl font-extrabold text-indigo-950">{activeEventStats.growthAuditCount}</p>
-                  <p className="text-[11px] text-indigo-600 font-medium truncate">Tag or Email Link Click</p>
-                </button>
 
-                {Object.entries(activeEventStats.resourceCounts).map(([catName, count]) => {
-                  const tagMap = {
-                    'FPF-Consumer Shift': 'fpfconsumershift',
-                    'FPF-Data to Strategy': 'fpfdatatostrategy',
-                    'FPF-Growth Blueprint': 'fpfgrowthblueprint',
-                    'FPF-All-Categories': 'fpfallcategories'
-                  };
-                  return (
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                     <button
-                      key={catName}
                       onClick={() => setTagLeadModal({
-                        title: `Resource Request: ${catName}`,
-                        cleanTag: tagMap[catName],
-                        isGrowthAudit: false
+                        title: 'Growth Audit Requests (Attendees)',
+                        cleanTag: 'fpfgrowthaudit',
+                        isGrowthAudit: true
                       })}
-                      className="bg-slate-50 hover:bg-slate-100 p-4 rounded-xl border border-slate-200 text-left transition space-y-2 group shadow-xs cursor-pointer"
+                      className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 hover:from-indigo-100 hover:to-indigo-200/50 p-4 rounded-xl border border-indigo-200 text-left transition space-y-2 group shadow-xs cursor-pointer"
                     >
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Resource Request</span>
-                        <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Nurture Action #1</span>
+                        <ArrowUpRight className="h-4 w-4 text-indigo-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
                       </div>
-                      <h4 className="font-bold text-slate-900 text-xs leading-snug truncate">{catName}</h4>
-                      <p className="text-2xl font-extrabold text-slate-900">{count}</p>
-                      <p className="text-[11px] text-indigo-600 font-medium truncate">Tag: {catName}</p>
+                      <h4 className="font-bold text-slate-900 text-xs leading-snug">Growth Audit Request</h4>
+                      <p className="text-2xl font-extrabold text-indigo-950">{activeEventStats.growthAuditCount}</p>
+                      <p className="text-[11px] text-indigo-600 font-medium truncate">Tag or Email Link Click</p>
                     </button>
-                  );
-                })}
-              </div>
-            </div>
+
+                    {Object.entries(activeEventStats.resourceCounts).map(([catName, count]) => {
+                      const tagMap = {
+                        'FPF-Consumer Shift': 'fpfconsumershift',
+                        'FPF-Data to Strategy': 'fpfdatatostrategy',
+                        'FPF-Growth Blueprint': 'fpfgrowthblueprint',
+                        'FPF-All-Categories': 'fpfallcategories'
+                      };
+                      return (
+                        <button
+                          key={catName}
+                          onClick={() => setTagLeadModal({
+                            title: `Resource Request: ${catName}`,
+                            cleanTag: tagMap[catName],
+                            isGrowthAudit: false
+                          })}
+                          className="bg-slate-50 hover:bg-slate-100 p-4 rounded-xl border border-slate-200 text-left transition space-y-2 group shadow-xs cursor-pointer"
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Resource Request</span>
+                            <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+                          </div>
+                          <h4 className="font-bold text-slate-900 text-xs leading-snug truncate">{catName}</h4>
+                          <p className="text-2xl font-extrabold text-slate-900">{count}</p>
+                          <p className="text-[11px] text-indigo-600 font-medium truncate">Tag: {catName}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
 
           </div>
         )}
@@ -2148,7 +2197,7 @@ export default function App() {
                       <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-sm">$</span>
                       <input
                         type="number"
-                        min="0"
+                        step="any"
                         placeholder="0"
                         value={spendSettings[source] ?? ''}
                         onChange={e => handleSpendInputChange(source, e.target.value)}
