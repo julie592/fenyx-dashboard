@@ -29,7 +29,7 @@ const configSchema = new mongoose.Schema({
 const Config = mongoose.models.Config || mongoose.model('Config', configSchema);
 
 const DEFAULT_SPEND_SETTINGS = {
-  'Google event Registrants': 0,
+  'Google event Registrants': 4760.39,
   'Google Partner Referral': 0,
   'Website Growth Audit Form': 0,
   'Internal leads': 0
