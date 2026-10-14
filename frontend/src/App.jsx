@@ -6,7 +6,7 @@ import {
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
   CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
   MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, TrendingUp, Sun, FileText, CheckSquare,
-  HelpCircle, Link as LinkIcon, ShieldCheck, Globe
+  HelpCircle, Link as LinkIcon, ShieldCheck, Globe, CheckCircle
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
@@ -195,6 +195,21 @@ export default function App() {
     return rawContacts;
   }, [rawContacts]);
 
+  // Helper to extract nested custom fields flexibly
+  const getCustomVal = (lead, ...keys) => {
+    if (!lead) return '—';
+    for (const k of keys) {
+      const cleanK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (lead.custom && lead.custom[cleanK] !== undefined && lead.custom[cleanK] !== null && lead.custom[cleanK] !== '' && lead.custom[cleanK] !== '—') {
+        return lead.custom[cleanK];
+      }
+      if (lead[cleanK] !== undefined && lead[cleanK] !== null && lead[cleanK] !== '' && lead[cleanK] !== '—') {
+        return lead[cleanK];
+      }
+    }
+    return '—';
+  };
+
   const leadTypeCounts = useMemo(() => {
     const counts = { Lead: 0, Qualified: 0, MQL: 0, SAL: 0, SQL: 0, Opportunity: 0, 'Not Qualified': 0, Won: 0 };
     processedLeads.forEach(l => {
@@ -280,11 +295,43 @@ export default function App() {
     return campaigns.filter(c => String(c.name || '').toLowerCase().includes('digicon'));
   }, [campaigns]);
 
-  const digiconConfirmedCount = useMemo(() => {
-    return processedLeads.filter(l => {
+  // DIGICON SPECIFIC ATTENDEE & ENGAGEMENT STATS
+  const digiconStats = useMemo(() => {
+    const email1Leads = [];
+    const email2ClickLeads = [];
+    const formFillLeads = [];
+
+    processedLeads.forEach(l => {
       const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
-      return cleanTags.includes('digicon');
-    }).length;
+      const rawTagsLower = (l.rawTags || []).map(t => String(t).toLowerCase());
+
+      // 1. Clicked on I'll be there (Email 1) - Identified by "Digicon" tag
+      const hasEmail1Tag = cleanTags.includes('digicon') || rawTagsLower.some(t => t.trim() === 'digicon');
+      if (hasEmail1Tag) {
+        email1Leads.push(l);
+      }
+
+      // 2. Clicked on Let's Connect (Email 2 - Partners) - Identified by "Digicon-Growth-Review-Click"
+      const hasEmail2ClickTag = cleanTags.includes('digicongrowthreviewclick') || rawTagsLower.some(t => t.includes('digicon-growth-review-click'));
+      if (hasEmail2ClickTag) {
+        email2ClickLeads.push(l);
+      }
+
+      // 3. Actually filled in the form and set date/time - Identified by "Digicon-Growth-Review"
+      const hasFormFillTag = cleanTags.includes('digicongrowthreview') || rawTagsLower.some(t => t.trim() === 'digicon-growth-review');
+      if (hasFormFillTag) {
+        formFillLeads.push(l);
+      }
+    });
+
+    return {
+      email1Leads,
+      email2ClickLeads,
+      formFillLeads,
+      email1Count: email1Leads.length,
+      email2ClickCount: email2ClickLeads.length,
+      formFillCount: formFillLeads.length
+    };
   }, [processedLeads]);
 
   const activeEventStats = useMemo(() => {
@@ -349,8 +396,10 @@ export default function App() {
     };
   }, [processedLeads, spendSettings, activeEvent]);
 
-  const modalLeads = useMemo(() => {
+  // Enhanced modal leads resolution
+  const displayedModalLeads = useMemo(() => {
     if (!tagLeadModal) return [];
+    if (tagLeadModal.leads) return tagLeadModal.leads;
 
     if (tagLeadModal.isGrowthAudit) {
       return processedLeads.filter(l => {
@@ -791,50 +840,6 @@ export default function App() {
       businessChallenges: getVal('what_business_challenges_are_you_facing'),
       notes: getVal('notes')
     });
-  };
-
-  const renderCampaignCard = (c) => {
-    const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 1;
-    const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
-    const uniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
-    const openRate = ((uniqueOpens / sendAmt) * 100).toFixed(1);
-    const clickRate = ((uniqueClicks / sendAmt) * 100).toFixed(1);
-    const isAboveAvg = Number(openRate) >= 21.5;
-
-    return (
-      <div key={c.id} className="p-4 border rounded-xl flex justify-between items-center bg-slate-50/50 hover:bg-slate-50 transition shadow-2xs">
-        <div className="space-y-1">
-          <div className="font-bold text-slate-900 text-sm flex items-center space-x-2">
-            <span>{c.name}</span>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              isAboveAvg ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-            }`}>
-              {isAboveAvg ? 'Above Benchmark' : 'Average Engagement'}
-            </span>
-          </div>
-          <div className="text-xs text-slate-500 flex items-center space-x-2">
-            <span>Status: <strong className="text-slate-700">{c.status}</strong></span>
-            <span>•</span>
-            <span>Unique Recipients: <strong className="text-slate-700">{sendAmt.toLocaleString()}</strong></span>
-            <span>•</span>
-            <span>Sent: {c.sdate || c.cdate || 'Recent'}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-6 text-right">
-          <div>
-            <div className="text-xs text-slate-400">Unique Opens / Clicks</div>
-            <div className="text-xs font-bold text-slate-800">{uniqueOpens.toLocaleString()} opens | {uniqueClicks.toLocaleString()} clicks</div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-400">Unique Rates</div>
-            <div className={`text-xs font-extrabold ${isAboveAvg ? 'text-emerald-600' : 'text-slate-800'}`}>
-              {openRate}% open | {clickRate}% click
-            </div>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -1542,7 +1547,7 @@ export default function App() {
           </div>
         )}
 
-        {/* EVENTS TAB WITH DIGICON CAMPAIGNS & WILL BE IN DIGICON BUTTON */}
+        {/* EVENTS TAB WITH DIGICON SUMMARY & CUSTOM FIELDS */}
         {activeTab === 'events' && (
           <div className="space-y-8">
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-wrap items-center justify-between gap-4">
@@ -1580,24 +1585,101 @@ export default function App() {
               </div>
             </div>
 
-            {/* DIGICON SPECIFIC BANNER & CAMPAIGN MODULE */}
+            {/* DIGICON SPECIFIC BANNER, 3-CARD SUMMARY & CAMPAIGN MODULE */}
             {activeEvent.id === 'digicon-2026' && (
               <div className="space-y-6">
-                <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white p-6 rounded-2xl shadow-md flex flex-wrap items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <Award className="h-5 w-5 text-purple-300" />
-                      <h3 className="text-lg font-bold">Digicon Event Tracker</h3>
+                
+                {/* DIGICON 3-CARD SUMMARY SECTION (ALL CLICKABLE) */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900">Digicon Engagement Summary</h3>
+                      <p className="text-xs text-slate-500">Click any card below to view the verified list of contacts matching that stage</p>
                     </div>
-                    <p className="text-xs text-purple-200/80">Live campaign response & confirmed attendee tracking from ActiveCampaign</p>
+                    <span className="text-xs font-extrabold bg-purple-50 text-purple-800 border border-purple-200 px-3 py-1 rounded-full">
+                      Real-time AC Tag Tracking
+                    </span>
                   </div>
 
-                  <div className="bg-white/10 backdrop-blur-md px-6 py-3 rounded-xl border border-white/10 text-center">
-                    <p className="text-[11px] uppercase tracking-wider text-purple-200 font-bold">Total Confirmed for Digicon</p>
-                    <p className="text-3xl font-black text-white mt-0.5">{digiconConfirmedCount}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {/* Card 1: Clicked on I'll be there (Email 1) */}
+                    <button
+                      onClick={() => setTagLeadModal({
+                        title: "Clicked on I'll be there (Email 1) - Tag: Digicon",
+                        leads: digiconStats.email1Leads,
+                        isDigiconReview: false
+                      })}
+                      className="p-5 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl shadow-xs transition transform hover:-translate-y-0.5 text-left space-y-3 group cursor-pointer"
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
+                          Email #1 Action
+                        </span>
+                        <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-indigo-600 transition" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-600">Clicked on I'll be there</h4>
+                        <p className="text-3xl font-black text-slate-900 mt-1">{digiconStats.email1Count}</p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                        <span className="font-mono text-slate-400 font-medium">Tag: Digicon</span>
+                        <span className="font-bold text-indigo-600 group-hover:underline">View Contacts →</span>
+                      </div>
+                    </button>
+
+                    {/* Card 2: Clicked on Let's Connect (Email 2 - Partners) */}
+                    <button
+                      onClick={() => setTagLeadModal({
+                        title: "Clicked on Let's Connect (Email 2 - Partners) - Tag: Digicon-Growth-Review-Click",
+                        leads: digiconStats.email2ClickLeads,
+                        isDigiconReview: false
+                      })}
+                      className="p-5 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl shadow-xs transition transform hover:-translate-y-0.5 text-left space-y-3 group cursor-pointer"
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-0.5 rounded-full">
+                          Email #2 Action (Partners)
+                        </span>
+                        <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-600">Clicked on Let's Connect</h4>
+                        <p className="text-3xl font-black text-slate-900 mt-1">{digiconStats.email2ClickCount}</p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                        <span className="font-mono text-slate-400 font-medium">Tag: Digicon-Growth-Review-Click</span>
+                        <span className="font-bold text-blue-600 group-hover:underline">View Contacts →</span>
+                      </div>
+                    </button>
+
+                    {/* Card 3: Filled form & set date/time */}
+                    <button
+                      onClick={() => setTagLeadModal({
+                        title: "Form Submissions with Date & Time - Tag: Digicon-Growth-Review",
+                        leads: digiconStats.formFillLeads,
+                        isDigiconReview: true
+                      })}
+                      className="p-5 bg-gradient-to-br from-purple-50 to-indigo-50/50 hover:from-purple-100/70 hover:to-indigo-100/70 border border-purple-200 rounded-2xl shadow-xs transition transform hover:-translate-y-0.5 text-left space-y-3 group cursor-pointer"
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 bg-purple-100 border border-purple-200 px-2.5 py-0.5 rounded-full">
+                          Form Submission
+                        </span>
+                        <ArrowUpRight className="h-4 w-4 text-purple-400 group-hover:text-purple-700 transition" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-purple-900">Filled Form & Scheduled Meeting</h4>
+                        <p className="text-3xl font-black text-purple-950 mt-1">{digiconStats.formFillCount}</p>
+                      </div>
+                      <div className="pt-2 border-t border-purple-100 flex items-center justify-between text-[11px]">
+                        <span className="font-mono text-purple-600 font-medium">Tag: Digicon-Growth-Review</span>
+                        <span className="font-bold text-purple-800 group-hover:underline">View Review Details →</span>
+                      </div>
+                    </button>
                   </div>
                 </div>
 
+                {/* DIGICON CAMPAIGN PERFORMANCE */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
                   <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                     <div>
@@ -1635,9 +1717,9 @@ export default function App() {
                               
                               <button
                                 onClick={() => setTagLeadModal({
-                                  title: 'Contacts Attending Digicon (Tagged: Digicon)',
-                                  cleanTag: 'digicon',
-                                  isGrowthAudit: false
+                                  title: "Contacts Attending Digicon (Tagged: Digicon)",
+                                  leads: digiconStats.email1Leads,
+                                  isDigiconReview: false
                                 })}
                                 className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-sm cursor-pointer"
                               >
@@ -1646,7 +1728,6 @@ export default function App() {
                               </button>
                             </div>
 
-                            {/* LARGER NUMBERS METRICS GRID */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                               <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
                                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recipients Sent</p>
@@ -1671,7 +1752,7 @@ export default function App() {
 
                               <div className="p-3.5 bg-purple-50/80 rounded-xl border border-purple-200 shadow-2xs">
                                 <p className="text-[10px] font-bold uppercase tracking-wider text-purple-700">Confirmed Digicon</p>
-                                <p className="text-2xl font-black text-purple-950 mt-1">{digiconConfirmedCount}</p>
+                                <p className="text-2xl font-black text-purple-950 mt-1">{digiconStats.email1Count}</p>
                               </div>
                             </div>
                           </div>
@@ -2241,8 +2322,8 @@ export default function App() {
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
               <div>
-                <h3 className="text-base font-bold text-slate-900">[UPDATED] AC Lead Type Field Reference Legend[cite: 2]</h3>
-                <p className="text-xs text-slate-500 mt-1">Official stage definitions and qualification criteria for CRM pipeline classification[cite: 2]</p>
+                <h3 className="text-base font-bold text-slate-900">[UPDATED] AC Lead Type Field Reference Legend</h3>
+                <p className="text-xs text-slate-500 mt-1">Official stage definitions and qualification criteria for CRM pipeline classification</p>
               </div>
               <span className="text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 rounded-full flex items-center space-x-1">
                 <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
@@ -2254,42 +2335,42 @@ export default function App() {
               <table className="w-full text-left text-sm text-slate-700">
                 <thead className="bg-slate-900 text-white text-xs font-bold uppercase tracking-wider">
                   <tr>
-                    <th className="px-6 py-4 border-r border-slate-800 w-1/3">[UPDATED] AC Lead Type Field[cite: 2]</th>
-                    <th className="px-6 py-4">Definition[cite: 2]</th>
+                    <th className="px-6 py-4 border-r border-slate-800 w-1/3">[UPDATED] AC Lead Type Field</th>
+                    <th className="px-6 py-4">Definition</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-slate-50/30">
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Lead[cite: 2]</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Contact Captured and Validated[cite: 2]</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Lead</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Contact Captured and Validated</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Qualified[cite: 2]</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Fit or Qualification Criteria Met[cite: 2]</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Qualified</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Fit or Qualification Criteria Met</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">MQL[cite: 2]</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Approved + Discovery Booking Confirmed[cite: 2]</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">MQL</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Approved + Discovery Booking Confirmed</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">SAL[cite: 2]</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Human Acceptance[cite: 2]</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">SAL</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Human Acceptance</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">SQL[cite: 2]</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Completed and Qualified Discovery[cite: 2]</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">SQL</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Completed and Qualified Discovery</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Opportunity[cite: 2]</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Mutually agreed sales process[cite: 2]</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Opportunity</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Mutually agreed sales process</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Not Qualified[cite: 2]</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Not Qualified[cite: 2]</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Not Qualified</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Not Qualified</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Won[cite: 2]</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Closed deal[cite: 2]</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Won</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Closed deal</td>
                   </tr>
                 </tbody>
               </table>
@@ -2579,14 +2660,14 @@ export default function App() {
         </div>
       )}
 
-      {/* ENHANCED NURTURE RESPONSE DRILL-DOWN MODAL */}
+      {/* ENHANCED DRILL-DOWN MODAL FOR TAGS & DIGICON FORM SUBMISSIONS */}
       {tagLeadModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-5xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+          <div className={`bg-white rounded-xl shadow-xl border border-slate-200 ${tagLeadModal.isDigiconReview ? 'max-w-6xl' : 'max-w-5xl'} w-full max-h-[85vh] overflow-hidden flex flex-col`}>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
               <div>
                 <h3 className="font-bold text-slate-900 text-base">{tagLeadModal.title}</h3>
-                <p className="text-xs text-slate-500">Showing {modalLeads.length} contacts matching this nurture response criteria</p>
+                <p className="text-xs text-slate-500">Showing {displayedModalLeads.length} contacts matching this criteria</p>
               </div>
               <button
                 onClick={() => setTagLeadModal(null)}
@@ -2597,20 +2678,73 @@ export default function App() {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
-              {!tagLeadModal.isGrowthAudit && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 flex items-center space-x-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                  <span>
-                    <strong>Email Delivery Confirmation:</strong> All contacts listed below have received their requested resources via automated email sequences.
-                  </span>
-                </div>
-              )}
-
-              {modalLeads.length === 0 ? (
+              {displayedModalLeads.length === 0 ? (
                 <div className="text-center py-8 text-xs text-slate-400 italic">
-                  No contacts found matching this nurture trigger.
+                  No contacts found matching this criteria.
+                </div>
+              ) : tagLeadModal.isDigiconReview ? (
+                /* SPECIALIZED VIEW FOR DIGICON-GROWTH-REVIEW WITH ALL REQUESTED FIELDS */
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <table className="w-full text-left text-xs text-slate-600">
+                    <thead className="bg-purple-50 font-bold text-purple-950 uppercase tracking-wider border-b border-purple-200">
+                      <tr>
+                        <th className="px-4 py-3">Full Name & Email</th>
+                        <th className="px-4 py-3">Company</th>
+                        <th className="px-4 py-3">Role</th>
+                        <th className="px-4 py-3">What Business Challenges Are You Facing?</th>
+                        <th className="px-4 py-3">Digicon Date & Time</th>
+                        <th className="px-4 py-3 text-right">Lead Stage</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {displayedModalLeads.map(lead => {
+                        const challenges = getCustomVal(
+                          lead, 
+                          'what_business_challenges_are_you_facing', 
+                          'whatbusinesschallengesareyoufacing', 
+                          'businesschallenges', 
+                          'challenges'
+                        );
+
+                        const digiconDateTime = getCustomVal(
+                          lead, 
+                          'digicon_date_and_time', 
+                          'digicondateandtime', 
+                          'digicondatetime', 
+                          'date_and_time_at_digicon', 
+                          'date_and_time', 
+                          'preferred_date_and_time'
+                        );
+
+                        return (
+                          <tr key={lead.id} className="hover:bg-slate-50 transition">
+                            <td className="px-4 py-3">
+                              <div className="font-bold text-slate-900">{lead.fullName}</div>
+                              <div className="text-[11px] text-slate-400">{lead.email}</div>
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-slate-800">{lead.company}</td>
+                            <td className="px-4 py-3 text-slate-600">{lead.role}</td>
+                            <td className="px-4 py-3 max-w-xs">
+                              <span className="text-slate-800 font-medium line-clamp-2" title={challenges}>
+                                {challenges}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 font-mono font-bold text-purple-900 bg-purple-50/50">
+                              {digiconDateTime}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-100 text-indigo-800">
+                                {lead.leadType}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
+                /* STANDARD VIEW FOR OTHER TAG DRILL-DOWNS */
                 <div className="overflow-x-auto border border-slate-200 rounded-lg">
                   <table className="w-full text-left text-xs text-slate-600">
                     <thead className="bg-slate-50 font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
@@ -2618,103 +2752,24 @@ export default function App() {
                         <th className="px-4 py-2.5">Contact Name</th>
                         <th className="px-4 py-2.5">Email</th>
                         <th className="px-4 py-2.5">Company</th>
-                        <th className="px-4 py-2.5">Trigger Source / Action Date</th>
-                        <th className="px-4 py-2.5 text-right">Resource Status</th>
+                        <th className="px-4 py-2.5">Role</th>
+                        <th className="px-4 py-2.5 text-right">Lead Stage</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {modalLeads.map(lead => {
-                        const cleanTags = (lead.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
-                        const rawTagsLower = (lead.rawTags || []).map(t => String(t).toLowerCase());
-
-                        const hasAuditTag = cleanTags.includes('fpfgrowthaudit');
-                        const hasAuditLink = rawTagsLower.some(t => 
-                          t.includes('future-proof-forum-2026-growth-audit') || 
-                          t.includes('growth-audit')
-                        );
-
-                        let actionDateStr = null;
-                        if (tagLeadModal.isGrowthAudit) {
-                          const triggerMatch = cleanTags.find(t => t.includes('futureproofforum2026growthaudit') || t === 'fpfgrowthaudit' || t.includes('growthaudit'));
-                          if (triggerMatch && lead.tagDates && lead.tagDates[triggerMatch]) {
-                            const d = new Date(lead.tagDates[triggerMatch]);
-                            actionDateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                          }
-                        } else {
-                          const triggerMatch = tagLeadModal.cleanTag;
-                          if (triggerMatch && lead.tagDates && lead.tagDates[triggerMatch]) {
-                            const d = new Date(lead.tagDates[triggerMatch]);
-                            actionDateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                          }
-                        }
-
-                        const hasSentTag = cleanTags.includes('fpfgrowthauditsent');
-
-                        return (
-                          <tr key={lead.id} className="hover:bg-slate-50">
-                            <td className="px-4 py-2.5 font-bold text-slate-900">{lead.fullName}</td>
-                            <td className="px-4 py-2.5 text-slate-500">{lead.email}</td>
-                            <td className="px-4 py-2.5 font-medium text-slate-700">{lead.company}</td>
-                            
-                            <td className="px-4 py-2.5">
-                              {tagLeadModal.isGrowthAudit ? (
-                                <div className="space-y-0.5">
-                                  <div className="font-semibold text-indigo-700 flex items-center space-x-1">
-                                    <span>
-                                      {hasAuditTag && hasAuditLink ? 'Tag Assigned & Link Clicked' :
-                                       hasAuditLink ? 'Email Link Clicked' : 'Tag: FPF-Growth-Audit'}
-                                    </span>
-                                  </div>
-                                  <a 
-                                    href="https://www.fenyx.digital/future-proof-forum-2026-growth-audit" 
-                                    target="_blank" 
-                                    rel="noreferrer"
-                                    className="text-[10px] text-slate-400 hover:text-indigo-600 underline flex items-center space-x-1"
-                                  >
-                                    <span>https://www.fenyx.digital/future-proof-forum-2026-growth-audit</span>
-                                    <ExternalLink className="h-2.5 w-2.5 inline" />
-                                  </a>
-                                  {actionDateStr && (
-                                    <div className="text-[10px] text-slate-500 font-medium mt-1">
-                                      Action Logged: {actionDateStr}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="space-y-0.5">
-                                  <span className="font-mono text-slate-500">{tagLeadModal.title}</span>
-                                  {actionDateStr && (
-                                    <div className="text-[10px] text-slate-400 font-medium mt-1">
-                                      Requested on: {actionDateStr}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-
-                            <td className="px-4 py-2.5 text-right">
-                              {tagLeadModal.isGrowthAudit ? (
-                                hasSentTag ? (
-                                  <span className="inline-flex items-center space-x-1 bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full text-[10px] font-bold">
-                                    <Check className="h-3 w-3" />
-                                    <span>Resource Sent</span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center space-x-1 bg-amber-100 text-amber-800 px-2 py-1 rounded-full text-[10px] font-bold">
-                                    <AlertCircle className="h-3 w-3" />
-                                    <span>Not yet sent</span>
-                                  </span>
-                                )
-                              ) : (
-                                <span className="inline-flex items-center space-x-1 bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full text-[10px] font-bold">
-                                  <Check className="h-3 w-3" />
-                                  <span>Received via Email</span>
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {displayedModalLeads.map(lead => (
+                        <tr key={lead.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-2.5 font-bold text-slate-900">{lead.fullName}</td>
+                          <td className="px-4 py-2.5 text-slate-500">{lead.email}</td>
+                          <td className="px-4 py-2.5 font-medium text-slate-700">{lead.company}</td>
+                          <td className="px-4 py-2.5 text-slate-600">{lead.role}</td>
+                          <td className="px-4 py-2.5 text-right">
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-100 text-indigo-800">
+                              {lead.leadType}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
