@@ -6,7 +6,7 @@ import {
   DollarSign, Sparkles, Activity, Calendar, MousePointer, Eye, Send,
   CheckCircle2, Clock, UserPlus, XCircle, Award, ExternalLink, Check, AlertCircle,
   MessageSquare, Bot, Minimize2, Workflow, Radio, ChevronDown, TrendingUp, Sun, FileText, CheckSquare,
-  HelpCircle, Link as LinkIcon, ShieldCheck, Globe, CheckCircle
+  HelpCircle, Link as LinkIcon, ShieldCheck, Globe, CheckCircle, Flame
 } from 'lucide-react';
 
 const API_PROXY = 'https://fenyx-dashboard.onrender.com';
@@ -291,8 +291,56 @@ export default function App() {
     return EVENT_REGISTRY.find(e => e.id === selectedEventId) || EVENT_REGISTRY[0];
   }, [selectedEventId]);
 
-  const digiconCampaigns = useMemo(() => {
-    return campaigns.filter(c => String(c.name || '').toLowerCase().includes('digicon'));
+  // PRE-EVENT DIGICON CAMPAIGNS (Filter out post-event emails)
+  const digiconPreEventCampaigns = useMemo(() => {
+    return campaigns.filter(c => {
+      const name = String(c.name || '').toLowerCase();
+      return name.includes('digicon') && !name.includes('post event') && !name.includes('post-event');
+    });
+  }, [campaigns]);
+
+  // CONTACTS WITH "DIGICON-POST-CLICK" TAG (Clicked FPF Resource in Post-Event Emails)
+  const digiconPostClickLeads = useMemo(() => {
+    return processedLeads.filter(l => {
+      const cleanTags = (l.rawTags || []).map(t => String(t).toLowerCase().replace(/[^a-z0-9]/g, ''));
+      const rawTagsLower = (l.rawTags || []).map(t => String(t).toLowerCase());
+      return cleanTags.includes('digiconpostclick') || rawTagsLower.some(t => t.includes('digicon-post-click'));
+    });
+  }, [processedLeads]);
+
+  // POST-EVENT EMAIL VERSIONS MATCHING SPECIFIED CAMPAIGN TITLES
+  const digiconPostEventVersions = useMemo(() => {
+    const expectedVersions = [
+      {
+        id: 'post-v1',
+        title: 'Digicon - Post event email #1 - Clicked "I\'ll be there"',
+        segmentName: 'Clicked "I\'ll be there" (Email 1)',
+        searchKeys: ['clicked "i\'ll be there"', 'clicked ill be there', 'i\'ll be there', 'ill be there'],
+        tagBadge: 'Version A'
+      },
+      {
+        id: 'post-v2',
+        title: 'Digicon - Post event email #1 - Digicon Growth Survey',
+        segmentName: 'Digicon Growth Survey',
+        searchKeys: ['digicon growth survey', 'growth survey', 'survey'],
+        tagBadge: 'Version B'
+      }
+    ];
+
+    return expectedVersions.map(ver => {
+      const matched = campaigns.find(c => {
+        const name = String(c.name || '').toLowerCase();
+        const isPost = name.includes('post event') || name.includes('post-event') || name.includes('post');
+        const matchesKey = ver.searchKeys.some(k => name.includes(k));
+        return name.includes('digicon') && (matchesKey || (isPost && matchesKey));
+      });
+
+      return {
+        ...ver,
+        campaign: matched || null,
+        displayName: matched ? matched.name : ver.title
+      };
+    });
   }, [campaigns]);
 
   // DIGICON SPECIFIC ATTENDEE & ENGAGEMENT STATS
@@ -1547,7 +1595,7 @@ export default function App() {
           </div>
         )}
 
-        {/* EVENTS TAB WITH DIGICON SUMMARY & CUSTOM FIELDS */}
+        {/* EVENTS TAB WITH DIGICON PRE-EVENT & POST-EVENT SECTIONS */}
         {activeTab === 'events' && (
           <div className="space-y-8">
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-wrap items-center justify-between gap-4">
@@ -1585,11 +1633,11 @@ export default function App() {
               </div>
             </div>
 
-            {/* DIGICON SPECIFIC BANNER, 3-CARD SUMMARY & CAMPAIGN MODULE */}
+            {/* DIGICON SPECIFIC MODULES */}
             {activeEvent.id === 'digicon-2026' && (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 
-                {/* DIGICON 3-CARD SUMMARY SECTION (ALL CLICKABLE) */}
+                {/* 1. DIGICON 3-CARD SUMMARY SECTION */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1679,26 +1727,26 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* DIGICON CAMPAIGN PERFORMANCE */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                {/* 2. DIGICON PRE-EVENT CAMPAIGNS */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
                   <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                     <div>
-                      <h3 className="text-base font-bold text-slate-900">Digicon Email Campaigns</h3>
-                      <p className="text-xs text-slate-500">Emails with 'Digicon' in campaign title and attendee link click tracking</p>
+                      <h3 className="text-base font-bold text-slate-900">Digicon Pre-Event Email Campaigns</h3>
+                      <p className="text-xs text-slate-500">Attendee announcements and pre-event RSVP invitation metrics</p>
                     </div>
                     <span className="text-xs font-extrabold bg-purple-50 text-purple-800 border border-purple-200 px-3 py-1 rounded-full">
-                      {digiconCampaigns.length} Digicon Emails
+                      {digiconPreEventCampaigns.length} Pre-Event Emails
                     </span>
                   </div>
 
-                  {digiconCampaigns.length === 0 ? (
+                  {digiconPreEventCampaigns.length === 0 ? (
                     <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs text-slate-500 italic space-y-1">
-                      <p className="font-semibold text-slate-700">No active Digicon campaigns found.</p>
-                      <p>Campaigns with "Digicon" in their title will automatically appear here upon sync.</p>
+                      <p className="font-semibold text-slate-700">No active Digicon pre-event campaigns found.</p>
+                      <p>Campaigns containing "Digicon" will automatically populate here upon sync.</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {digiconCampaigns.map(c => {
+                      {digiconPreEventCampaigns.map(c => {
                         const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 0;
                         const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
                         const uniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
@@ -1711,7 +1759,7 @@ export default function App() {
                               <div className="flex items-center space-x-2">
                                 <h4 className="font-extrabold text-slate-900 text-base">{c.name}</h4>
                                 <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                                  Digicon Track
+                                  Pre-Event
                                 </span>
                               </div>
                               
@@ -1761,10 +1809,106 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {/* 3. NEW: DIGICON POST-EVENT EMAILS & RESOURCE CLICK PERFORMANCE */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                  <div className="border-b border-slate-100 pb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <Flame className="h-5 w-5 text-amber-500" />
+                        <h3 className="text-base font-bold text-slate-900">Digicon Post-Event Email Performance</h3>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">Post-event followups and FPF resource click-through metrics (Tag: Digicon-Post-Click)</p>
+                    </div>
+
+                    <button
+                      onClick={() => setTagLeadModal({
+                        title: 'FPF Resource Clickers from Post-Event Emails (Tagged: Digicon-Post-Click)',
+                        leads: digiconPostClickLeads,
+                        isDigiconReview: false
+                      })}
+                      className="inline-flex items-center space-x-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-sm cursor-pointer"
+                    >
+                      <MousePointer className="h-4 w-4" />
+                      <span>View FPF Resource Clickers ({digiconPostClickLeads.length})</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {digiconPostEventVersions.map(ver => {
+                      const c = ver.campaign;
+                      const sendAmt = c ? (Number(c.send_amt) || Number(c.unique_send) || 0) : 0;
+                      const uniqueOpens = c ? (Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0) : 0;
+                      const uniqueClicks = c ? (Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0) : 0;
+                      const openRate = sendAmt > 0 ? ((uniqueOpens / sendAmt) * 100).toFixed(1) : '0.0';
+                      const clickRate = sendAmt > 0 ? ((uniqueClicks / sendAmt) * 100).toFixed(1) : '0.0';
+
+                      return (
+                        <div key={ver.id} className="p-5 border border-slate-200 rounded-2xl bg-slate-50/70 hover:bg-slate-50 transition shadow-xs space-y-4">
+                          <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-200/80 pb-3">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center space-x-2">
+                                <h4 className="font-extrabold text-slate-900 text-sm">{ver.displayName}</h4>
+                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                                  {ver.tagBadge}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500">Segment: <strong className="text-slate-700">{ver.segmentName}</strong></p>
+                            </div>
+
+                            <button
+                              onClick={() => setTagLeadModal({
+                                title: `FPF Resource Clickers - ${ver.displayName} (Tag: Digicon-Post-Click)`,
+                                leads: digiconPostClickLeads,
+                                isDigiconReview: false
+                              })}
+                              className="inline-flex items-center space-x-1.5 bg-white hover:bg-amber-50 text-amber-900 text-xs font-bold px-3.5 py-1.5 rounded-lg border border-amber-300 transition shadow-2xs cursor-pointer"
+                            >
+                              <LinkIcon className="h-3.5 w-3.5 text-amber-600" />
+                              <span>Resource Clickers: {digiconPostClickLeads.length}</span>
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recipients Sent</p>
+                              <p className="text-2xl font-black text-slate-900 mt-1">{sendAmt.toLocaleString()}</p>
+                            </div>
+
+                            <div className="p-3.5 bg-white rounded-xl border border-indigo-100 shadow-2xs">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Unique Opens</p>
+                              <div className="flex items-baseline space-x-1.5 mt-1">
+                                <p className="text-2xl font-black text-indigo-950">{uniqueOpens.toLocaleString()}</p>
+                                <span className="text-xs font-extrabold text-indigo-600">({openRate}%)</span>
+                              </div>
+                            </div>
+
+                            <div className="p-3.5 bg-white rounded-xl border border-blue-100 shadow-2xs">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Unique Clicks</p>
+                              <div className="flex items-baseline space-x-1.5 mt-1">
+                                <p className="text-2xl font-black text-blue-950">{uniqueClicks.toLocaleString()}</p>
+                                <span className="text-xs font-extrabold text-blue-600">({clickRate}%)</span>
+                              </div>
+                            </div>
+
+                            <div className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200 shadow-2xs">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Clicked FPF Resource</p>
+                              <div className="flex items-baseline space-x-1.5 mt-1">
+                                <p className="text-2xl font-black text-amber-950">{digiconPostClickLeads.length}</p>
+                                <span className="text-[11px] font-semibold text-amber-700">contacts</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
               </div>
             )}
 
-            {/* DEFAULT SCORECARDS & VISUALIZERS HIDDEN FOR DIGICON */}
+            {/* DEFAULT SCORECARDS & VISUALIZERS (ONLY DISPLAYED FOR GOOGLE EVENT) */}
             {activeEvent.id !== 'digicon-2026' && (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -2322,8 +2466,8 @@ export default function App() {
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
               <div>
-                <h3 className="text-base font-bold text-slate-900">[UPDATED] AC Lead Type Field Reference Legend</h3>
-                <p className="text-xs text-slate-500 mt-1">Official stage definitions and qualification criteria for CRM pipeline classification</p>
+                <h3 className="text-base font-bold text-slate-900">[UPDATED] AC Lead Type Field Reference Legend[cite: 2]</h3>
+                <p className="text-xs text-slate-500 mt-1">Official stage definitions and qualification criteria for CRM pipeline classification[cite: 2]</p>
               </div>
               <span className="text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 rounded-full flex items-center space-x-1">
                 <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
@@ -2335,42 +2479,42 @@ export default function App() {
               <table className="w-full text-left text-sm text-slate-700">
                 <thead className="bg-slate-900 text-white text-xs font-bold uppercase tracking-wider">
                   <tr>
-                    <th className="px-6 py-4 border-r border-slate-800 w-1/3">[UPDATED] AC Lead Type Field</th>
-                    <th className="px-6 py-4">Definition</th>
+                    <th className="px-6 py-4 border-r border-slate-800 w-1/3">[UPDATED] AC Lead Type Field[cite: 2]</th>
+                    <th className="px-6 py-4">Definition[cite: 2]</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-slate-50/30">
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Lead</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Contact Captured and Validated</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Lead[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Contact Captured and Validated[cite: 2]</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Qualified</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Fit or Qualification Criteria Met</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Qualified[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Fit or Qualification Criteria Met[cite: 2]</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">MQL</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Approved + Discovery Booking Confirmed</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">MQL[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Approved + Discovery Booking Confirmed[cite: 2]</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">SAL</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Human Acceptance</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">SAL[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Human Acceptance[cite: 2]</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">SQL</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Completed and Qualified Discovery</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">SQL[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Completed and Qualified Discovery[cite: 2]</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Opportunity</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Mutually agreed sales process</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Opportunity[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Mutually agreed sales process[cite: 2]</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Not Qualified</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Not Qualified</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Not Qualified[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Not Qualified[cite: 2]</td>
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Won</td>
-                    <td className="px-6 py-4 font-medium text-slate-700">Closed deal</td>
+                    <td className="px-6 py-4 font-extrabold text-slate-900 border-r border-slate-200">Won[cite: 2]</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">Closed deal[cite: 2]</td>
                   </tr>
                 </tbody>
               </table>
