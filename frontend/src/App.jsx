@@ -291,11 +291,19 @@ export default function App() {
     return EVENT_REGISTRY.find(e => e.id === selectedEventId) || EVENT_REGISTRY[0];
   }, [selectedEventId]);
 
-  // PRE-EVENT DIGICON CAMPAIGNS (Filter out post-event emails)
+  // STRICT SEPARATION: PRE-EVENT EMAILS (Excludes any email with "post" in the name)
   const digiconPreEventCampaigns = useMemo(() => {
     return campaigns.filter(c => {
       const name = String(c.name || '').toLowerCase();
-      return name.includes('digicon') && !name.includes('post event') && !name.includes('post-event');
+      return name.includes('digicon') && !name.includes('post');
+    });
+  }, [campaigns]);
+
+  // STRICT SEPARATION: POST-EVENT EMAILS (Includes any email with "digicon" AND "post" in the name)
+  const digiconPostEventCampaigns = useMemo(() => {
+    return campaigns.filter(c => {
+      const name = String(c.name || '').toLowerCase();
+      return name.includes('digicon') && name.includes('post');
     });
   }, [campaigns]);
 
@@ -307,41 +315,6 @@ export default function App() {
       return cleanTags.includes('digiconpostclick') || rawTagsLower.some(t => t.includes('digicon-post-click'));
     });
   }, [processedLeads]);
-
-  // POST-EVENT EMAIL VERSIONS MATCHING SPECIFIED CAMPAIGN TITLES
-  const digiconPostEventVersions = useMemo(() => {
-    const expectedVersions = [
-      {
-        id: 'post-v1',
-        title: 'Digicon - Post event email #1 - Clicked "I\'ll be there"',
-        segmentName: 'Clicked "I\'ll be there" (Email 1)',
-        searchKeys: ['clicked "i\'ll be there"', 'clicked ill be there', 'i\'ll be there', 'ill be there'],
-        tagBadge: 'Version A'
-      },
-      {
-        id: 'post-v2',
-        title: 'Digicon - Post event email #1 - Digicon Growth Survey',
-        segmentName: 'Digicon Growth Survey',
-        searchKeys: ['digicon growth survey', 'growth survey', 'survey'],
-        tagBadge: 'Version B'
-      }
-    ];
-
-    return expectedVersions.map(ver => {
-      const matched = campaigns.find(c => {
-        const name = String(c.name || '').toLowerCase();
-        const isPost = name.includes('post event') || name.includes('post-event') || name.includes('post');
-        const matchesKey = ver.searchKeys.some(k => name.includes(k));
-        return name.includes('digicon') && (matchesKey || (isPost && matchesKey));
-      });
-
-      return {
-        ...ver,
-        campaign: matched || null,
-        displayName: matched ? matched.name : ver.title
-      };
-    });
-  }, [campaigns]);
 
   // DIGICON SPECIFIC ATTENDEE & ENGAGEMENT STATS
   const digiconStats = useMemo(() => {
@@ -889,6 +862,18 @@ export default function App() {
       notes: getVal('notes')
     });
   };
+
+  // POST-EVENT EMAILS LIST: Dynamically render all matched campaigns containing 'post'
+  const postEventCampaignsList = useMemo(() => {
+    if (digiconPostEventCampaigns.length > 0) {
+      return digiconPostEventCampaigns;
+    }
+    // Fallback: If not yet synced, display the two planned post-event email templates
+    return [
+      { id: 'post-fb-1', name: 'Digicon - Post event email #1 - Clicked "I\'ll be there"', send_amt: 0, uniqueopens: 0, subscriberclicks: 0 },
+      { id: 'post-fb-2', name: 'Digicon - Post event email #1 - Digicon Growth Survey', send_amt: 0, uniqueopens: 0, subscriberclicks: 0 }
+    ];
+  }, [digiconPostEventCampaigns]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
@@ -1727,12 +1712,12 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 2. DIGICON PRE-EVENT CAMPAIGNS */}
+                {/* 2. DIGICON PRE-EVENT CAMPAIGNS (Excludes emails with 'post') */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
                   <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                     <div>
                       <h3 className="text-base font-bold text-slate-900">Digicon Pre-Event Email Campaigns</h3>
-                      <p className="text-xs text-slate-500">Attendee announcements and pre-event RSVP invitation metrics</p>
+                      <p className="text-xs text-slate-500">Attendee announcements and pre-event RSVP invitation metrics (Excludes post-event emails)</p>
                     </div>
                     <span className="text-xs font-extrabold bg-purple-50 text-purple-800 border border-purple-200 px-3 py-1 rounded-full">
                       {digiconPreEventCampaigns.length} Pre-Event Emails
@@ -1742,7 +1727,7 @@ export default function App() {
                   {digiconPreEventCampaigns.length === 0 ? (
                     <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs text-slate-500 italic space-y-1">
                       <p className="font-semibold text-slate-700">No active Digicon pre-event campaigns found.</p>
-                      <p>Campaigns containing "Digicon" will automatically populate here upon sync.</p>
+                      <p>Emails containing "Digicon" without "post" will automatically populate here upon sync.</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -1810,7 +1795,7 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 3. NEW: DIGICON POST-EVENT EMAILS & RESOURCE CLICK PERFORMANCE */}
+                {/* 3. DIGICON POST-EVENT EMAILS & RESOURCE CLICK PERFORMANCE (All emails containing 'post') */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
                   <div className="border-b border-slate-100 pb-3 flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -1818,7 +1803,9 @@ export default function App() {
                         <Flame className="h-5 w-5 text-amber-500" />
                         <h3 className="text-base font-bold text-slate-900">Digicon Post-Event Email Performance</h3>
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">Post-event followups and FPF resource click-through metrics (Tag: Digicon-Post-Click)</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Post-event followup emails (name containing "Post") and FPF resource clicks (Tag: Digicon-Post-Click)
+                      </p>
                     </div>
 
                     <button
@@ -1835,30 +1822,26 @@ export default function App() {
                   </div>
 
                   <div className="space-y-4">
-                    {digiconPostEventVersions.map(ver => {
-                      const c = ver.campaign;
-                      const sendAmt = c ? (Number(c.send_amt) || Number(c.unique_send) || 0) : 0;
-                      const uniqueOpens = c ? (Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0) : 0;
-                      const uniqueClicks = c ? (Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0) : 0;
+                    {postEventCampaignsList.map(c => {
+                      const sendAmt = Number(c.send_amt) || Number(c.unique_send) || 0;
+                      const uniqueOpens = Number(c.uniqueopens) || Number(c.unique_opens) || Number(c.opens) || 0;
+                      const uniqueClicks = Number(c.subscriberclicks) || Number(c.uniqueclicks) || Number(c.unique_clicks) || Number(c.linkclicks) || Number(c.clicks) || 0;
                       const openRate = sendAmt > 0 ? ((uniqueOpens / sendAmt) * 100).toFixed(1) : '0.0';
                       const clickRate = sendAmt > 0 ? ((uniqueClicks / sendAmt) * 100).toFixed(1) : '0.0';
 
                       return (
-                        <div key={ver.id} className="p-5 border border-slate-200 rounded-2xl bg-slate-50/70 hover:bg-slate-50 transition shadow-xs space-y-4">
+                        <div key={c.id} className="p-5 border border-slate-200 rounded-2xl bg-slate-50/70 hover:bg-slate-50 transition shadow-xs space-y-4">
                           <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-200/80 pb-3">
-                            <div className="space-y-0.5">
-                              <div className="flex items-center space-x-2">
-                                <h4 className="font-extrabold text-slate-900 text-sm">{ver.displayName}</h4>
-                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
-                                  {ver.tagBadge}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-slate-500">Segment: <strong className="text-slate-700">{ver.segmentName}</strong></p>
+                            <div className="flex items-center space-x-2">
+                              <h4 className="font-extrabold text-slate-900 text-sm">{c.name}</h4>
+                              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                                Post-Event
+                              </span>
                             </div>
 
                             <button
                               onClick={() => setTagLeadModal({
-                                title: `FPF Resource Clickers - ${ver.displayName} (Tag: Digicon-Post-Click)`,
+                                title: `FPF Resource Clickers - ${c.name} (Tag: Digicon-Post-Click)`,
                                 leads: digiconPostClickLeads,
                                 isDigiconReview: false
                               })}
@@ -2895,92 +2878,4 @@ export default function App() {
                       <tr>
                         <th className="px-4 py-2.5">Contact Name</th>
                         <th className="px-4 py-2.5">Email</th>
-                        <th className="px-4 py-2.5">Company</th>
-                        <th className="px-4 py-2.5">Role</th>
-                        <th className="px-4 py-2.5 text-right">Lead Stage</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {displayedModalLeads.map(lead => (
-                        <tr key={lead.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-2.5 font-bold text-slate-900">{lead.fullName}</td>
-                          <td className="px-4 py-2.5 text-slate-500">{lead.email}</td>
-                          <td className="px-4 py-2.5 font-medium text-slate-700">{lead.company}</td>
-                          <td className="px-4 py-2.5 text-slate-600">{lead.role}</td>
-                          <td className="px-4 py-2.5 text-right">
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-100 text-indigo-800">
-                              {lead.leadType}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 text-right">
-              <button
-                onClick={() => setTagLeadModal(null)}
-                className="px-4 py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-900 transition cursor-pointer"
-              >
-                Close List
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VIEW CONTACT DETAILS MODAL */}
-      {selectedLead && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full max-h-[85vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 sticky top-0">
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">{selectedLead.fullName}</h3>
-                <p className="text-xs text-slate-500">{selectedLead.email}</p>
-              </div>
-              <button
-                onClick={() => setSelectedLead(null)}
-                className="p-1 hover:bg-slate-200 rounded-lg text-slate-500"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 text-xs">
-              <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Contact Fields (Populated)</h4>
-              
-              <div className="grid grid-cols-1 gap-3">
-                {Object.entries(selectedLead)
-                  .filter(([key, val]) => {
-                    if (val === null || val === undefined || val === '' || val === '—') return false;
-                    if (Array.isArray(val) && val.length === 0) return false;
-                    return true;
-                  })
-                  .map(([key, val]) => (
-                    <div key={key} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                      <span className="font-semibold text-slate-500 capitalize">{key.replace(/([A-Z])/g, ' $1')}:</span>
-                      <span className="ml-2 font-medium text-slate-900 break-words">
-                        {Array.isArray(val) ? val.join(', ') : String(val)}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-
-            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 text-right">
-              <button
-                onClick={() => setSelectedLead(null)}
-                className="px-4 py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-900 cursor-pointer"
-              >
-                Close Details
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                        <th className="px-4 py-2.5">
